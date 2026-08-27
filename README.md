@@ -47,6 +47,19 @@ FastAPI 核心伺服器 (@ localhost:8000 智慧動態順延)
 
 ---
 
+## 🧠 多後端 LLM 大腦管理與社群節點連線 (LLM Reasoning Backends)
+
+伺服器內建靈活的大腦推論後端管理器，可直接在控制台熱切換或透過 API 指定：
+
+| 後端類型 (`backend`) | 預設模型 (`model`) | 連線方式與特色 |
+| :--- | :--- | :--- |
+| **`llmshare`** (預設) | `deepseek-v4-flash:0731` | 本機 CLI 調用，毫秒級極速回應、免 API Key、零網路依賴 |
+| **`groq`** | `llama-3.3-70b-versatile` | 雲端極速推論 API，回覆細膩生動（需在控制台填入 `GROQ_API_KEY`） |
+| **`local`** | `qwen2.5:7b` | 本機私有端點（預設 `http://127.0.0.1:11434/v1`，相容 Ollama / vLLM） |
+| **`community`** | `default` | **社群節點推論大腦**：自動從 Cloudflare KV 探索在線大腦節點，共享社群推理算力 |
+
+---
+
 ## 📡 分散式多服務節點矩陣 (Service Mesh)
 
 本伺服器支援向 Cloudflare KV 自動註冊為社群節點，未來可自由擴展以下五大服務模組：
@@ -74,7 +87,8 @@ cd ~/glitch-server
 在控制台中即可：
 * 監控 Cloudflare Tunnel 公網網址與在線狀態。
 * 一鍵開啟 `ai-brain-site` 並自動套用伺服器網址。
-* 切換 `F5-TTS` / `CosyVoice 3` 雙引擎並即時試聽台詞發音。
+* 切換 `F5-TTS` / `CosyVoice 3` 雙語音引擎。
+* 切換 `llmshare` / `Groq` / `Local` / `Community` 四大推論大腦並即時測試 Q&A。
 * 檢視系統事件日誌與聲學延遲指標。
 
 ---
@@ -86,6 +100,7 @@ cd ~/glitch-server
 {
   "message": "格莉奇，你今天喝了什麼？",
   "engine": "f5_distilled",
+  "backend": "llmshare",
   "speed": 1.0,
   "nfe": 12
 }
@@ -102,6 +117,8 @@ cd ~/glitch-server
   }
   ```
 
-### 2. `POST /api/tts` (純文字合成)
-### 3. `GET /api/engine/active` & `POST /api/engine/select` (引擎切換)
-### 4. `GET /api/tunnel/status` (通道狀態)
+### 2. `POST /api/tts` (純文字語音合成)
+### 3. `GET /api/engine/active` & `POST /api/engine/select` (語音引擎切換)
+### 4. `GET /api/llm/config` & `POST /api/llm/config` (LLM 大腦配置)
+### 5. `POST /api/llm/test` (LLM 大腦沙盒測試)
+### 6. `GET /api/tunnel/status` (通道狀態)
