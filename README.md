@@ -1,8 +1,8 @@
-# 🎙️ glitch-server (格莉奇 AI 語音通話與多服務聲學算力伺服器)
+# 🎙️ glitch-voice-server (格莉奇 AI 語音通話與多服務聲學算力伺服器)
 
 **[ai-brain-site (格莉奇OS)](https://yazelin.github.io/ai-brain-site/) 專屬的開源分散式語音/算力節點。**
 
-提供 **全雙工即時語音通話 (In-Call Audio)**、**雙核心 TTS 聲學推論 (F5-TTS 337M 蒸餾底模 + CosyVoice 3 原生 0.5B)**、**雙軌台灣化音準替身系統**、**內建專業廣播控制台** 以及 **Cloudflare KV 自動心跳註冊**。
+提供 **全雙工即時語音通話 (In-Call Audio)**、**雙核心 TTS 聲學推論 (F5-TTS 337M 蒸餾底模 + CosyVoice 3 原生 0.5B)**、**多後端 LLM 大腦管理（支援社群節點大腦連線）**、**雙軌台灣化音準替身系統**、**內建專業廣播控制台** 以及 **Cloudflare KV 自動心跳註冊**。
 
 ---
 
