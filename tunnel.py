@@ -107,6 +107,13 @@ class TunnelManager:
                 raise RuntimeError('系統未安裝 cloudflared 執行檔')
 
             self.tunnel_url = None
+            # 先清理任何殘留的孤兒 cloudflared 進程，避免多個 Tunnel 搶 port 8000 造成連線時好時壞
+            try:
+                subprocess.run(['pkill', '-f', 'cloudflared tunnel'], capture_output=True)
+                time.sleep(0.5)
+            except Exception:
+                pass
+
             self.start_time = time.time()
             self.logs.clear()
             self.stop_event.clear()
