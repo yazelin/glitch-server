@@ -48,7 +48,7 @@ class GlitchTTSEngine:
         except Exception as e:
             print(f"[GlitchTTSEngine] 預熱略過: {e}", flush=True)
 
-    def synthesize_wav_bytes(self, text: str, speed: float = 0.92, nfe: int = None) -> tuple[bytes, float, int]:
+    def synthesize_wav_bytes(self, text: str, speed: float = 1.0, nfe: int = None) -> tuple[bytes, float, int]:
         """合成語音並回傳 (wav_bytes, duration_secs, sample_rate)"""
         nfe_step = nfe or self.nfe_default
         t0 = time.time()

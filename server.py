@@ -48,14 +48,14 @@ class GlitchCallRequest(BaseModel):
     message: str
     history: Optional[List[ChatHistoryItem]] = []
     request_id: Optional[str] = None
-    speed: Optional[float] = 0.92
+    speed: Optional[float] = 1.0
     nfe: Optional[int] = 12
     backend: Optional[str] = "llmshare"
     model: Optional[str] = None
 
 class TTSRequest(BaseModel):
     text: str
-    speed: Optional[float] = 0.92
+    speed: Optional[float] = 1.0
     nfe: Optional[int] = 12
     return_base64: Optional[bool] = False
 
