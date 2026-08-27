@@ -76,7 +76,7 @@ FastAPI 核心伺服器 (@ localhost:8000 智慧動態順延)
 
 ### 1. 啟動語音伺服器與控制台
 ```bash
-cd ~/glitch-server
+cd ~/glitch-voice-server
 ~/CosyVoice/.venv/bin/python server.py
 ```
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# glitch-server 環境依賴檢查與快速啟動腳本
+# glitch-voice-server 環境依賴檢查與快速啟動腳本
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
