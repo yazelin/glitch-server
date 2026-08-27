@@ -63,7 +63,10 @@ class TunnelManager:
             req = urllib.request.Request(
                 f'{REGISTRY_URL}/voice/register',
                 data=json.dumps(payload).encode('utf-8'),
-                headers={'Content-Type': 'application/json'}
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GlitchVoiceServer/1.1'
+                }
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
                 if resp.status == 200:
@@ -78,7 +81,10 @@ class TunnelManager:
             req = urllib.request.Request(
                 f'{REGISTRY_URL}/voice/unregister',
                 data=json.dumps({'id': NODE_ID}).encode('utf-8'),
-                headers={'Content-Type': 'application/json'}
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GlitchVoiceServer/1.1'
+                }
             )
             with urllib.request.urlopen(req, timeout=3) as resp:
                 pass
