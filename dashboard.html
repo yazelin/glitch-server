@@ -393,7 +393,7 @@
       <div class="hardware-metrics">
         <div class="metric-pill">DEVICE: <span>RTX 4060</span></div>
         <div class="metric-pill">SAMPLING: <span>24.0 kHz</span></div>
-        <div class="metric-pill">PORT: <span>8000</span></div>
+        <div class="metric-pill">PORT: <span id="hardware-port">8000</span></div>
         <div id="tally-indicator" class="tally-badge offline">
           <div class="tally-dot"></div>
           <span id="tally-text">OFFLINE</span>
@@ -420,7 +420,7 @@
 
           <div class="field-group">
             <div class="field-label"><span>LOCAL DIRECT LOOPBACK</span></div>
-            <input type="text" class="input-terminal" readonly value="http://127.0.0.1:8000">
+            <input type="text" id="loopback-input" class="input-terminal" readonly value="http://127.0.0.1:8000">
           </div>
 
           <div class="btn-toolbar" style="margin-top:auto;">
@@ -589,11 +589,18 @@
           uptimeText.textContent = "UPTIME: 0s";
         }
 
+        if (data.port) {
+          const portEl = document.getElementById("hardware-port");
+          const loopbackEl = document.getElementById("loopback-input");
+          if (portEl) portEl.textContent = data.port;
+          if (loopbackEl) loopbackEl.value = "http://127.0.0.1:" + data.port;
+        }
+
         if (data.recent_logs && data.recent_logs.length > 0) {
           consoleEl.textContent = data.recent_logs.join("\n");
           consoleEl.scrollTop = consoleEl.scrollHeight;
         } else {
-          consoleEl.textContent = "Server online on Port 8000. Engine standby.";
+          consoleEl.textContent = "Server online on Port " + (data.port || 8000) + ". Engine standby.";
         }
       } catch (e) {
         console.error("Status poll error", e);

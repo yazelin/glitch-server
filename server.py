@@ -14,10 +14,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
+import socket
 from engine import GlitchTTSEngine
 from persona import GLITCH_SYSTEM_PROMPT, detect_emotion
 from taiwanize import taiwanize_text
 from tunnel import tunnel_mgr
+
+def find_available_port(start_port: int = 8000, max_attempts: int = 50) -> int:
+    """自動探測可用埠號，若 8000 被佔用則依序遞增 (8001, 8002...)"""
+    for p in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("0.0.0.0", p))
+                return p
+            except OSError:
+                continue
+    return start_port
+
+ACTIVE_PORT = find_available_port(int(os.environ.get("PORT", "8000")))
+tunnel_mgr.port = ACTIVE_PORT
 
 app = FastAPI(title="Glitch Voice Server", description="格莉奇 AI 語音通話與聲學算力核心")
 
@@ -189,6 +204,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "glitch-voice-server",
+        "port": ACTIVE_PORT,
         "tts_engine": f"F5-TTS (Base, NFE={DEFAULT_NFE})",
         "character": "格莉奇 (Glitch)",
         "memory": "4KB",
@@ -277,5 +293,5 @@ def glitch_call_endpoint(req: GlitchCallRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    print("啟動格莉奇語音伺服器 @ http://127.0.0.1:8000 ...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    print(f"啟動格莉奇語音伺服器 @ http://127.0.0.1:{ACTIVE_PORT} ...")
+    uvicorn.run(app, host="0.0.0.0", port=ACTIVE_PORT)
