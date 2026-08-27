@@ -24,13 +24,15 @@ app = FastAPI(title="Glitch Voice Server", description="格莉奇 AI 語音通�
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    # 規範上 "*" 不能搭 credentials，瀏覽器會直接擋掉；前端本來就沒帶 cookie
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # 初始化 F5-TTS 聲學引擎（顯存常駐 ~2.1GB，NFE=12 極速模式）
-engine = GlitchTTSEngine(nfe_default=12)
+DEFAULT_NFE = 12
+engine = GlitchTTSEngine(nfe_default=DEFAULT_NFE)
 
 DEFAULT_MODEL = {
     "llmshare": "deepseek-v4-flash:0731",
@@ -146,7 +148,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "glitch-voice-server",
-        "tts_engine": "F5-TTS (Base, NFE=16)",
+        "tts_engine": f"F5-TTS (Base, NFE={DEFAULT_NFE})",
         "character": "格莉奇 (Glitch)",
         "memory": "4KB",
     }
@@ -203,11 +205,15 @@ def glitch_call_endpoint(req: GlitchCallRequest):
     emotion = detect_emotion(reply_display)
 
     # 4. F5-TTS 聲學合成
-    wav_bytes, duration, sr = engine.synthesize_wav_bytes(
-        text=reply_speech,
-        speed=req.speed,
-        nfe=req.nfe
-    )
+    try:
+        wav_bytes, duration, sr = engine.synthesize_wav_bytes(
+            text=reply_speech,
+            speed=req.speed,
+            nfe=req.nfe
+        )
+    except Exception as e:
+        # 寧可回 500 讓前端顯示錯誤，也不要回一個解不開的 data URL 讓人以為是喇叭壞了
+        raise HTTPException(status_code=500, detail=f"語音合成失敗：{e}")
 
     # 5. 打包 Base64 Audio URL
     b64_audio = base64.b64encode(wav_bytes).decode("ascii")

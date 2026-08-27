@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""F5-TTS 格莉奇專屬聲學推論引擎（預載聲紋、NFE=16、顯存常駐 ~2.1GB）。"""
+"""F5-TTS 格莉奇專屬聲學推論引擎（預載聲紋、顯存常駐 ~2.1GB）。"""
 import io
+import threading
 import time
 from pathlib import Path
+import numpy as np
 import soundfile as sf
 import torch
 
@@ -17,6 +19,9 @@ class GlitchTTSEngine:
         self.ref_wav = str(DEFAULT_WAV)
         self.ref_text = DEFAULT_TXT.read_text(encoding="utf-8").strip() if DEFAULT_TXT.exists() else ""
         self.f5 = None
+        # F5-TTS 對同一份 CUDA model 併發呼叫不是 thread-safe；FastAPI 的同步 endpoint
+        # 會丟進 threadpool，使用者連續講兩句就會同時進來。序列化掉。
+        self._lock = threading.Lock()
         self._load_model()
 
     def _load_model(self):
@@ -47,18 +52,31 @@ class GlitchTTSEngine:
         """合成語音並回傳 (wav_bytes, duration_secs, sample_rate)"""
         nfe_step = nfe or self.nfe_default
         t0 = time.time()
-        wav_out, sr, _ = self.f5.infer(
-            ref_file=self.ref_wav,
-            ref_text=self.ref_text,
-            gen_text=text,
-            speed=speed,
-            nfe_step=nfe_step,
-            show_info=lambda x: None
-        )
+        with self._lock:
+            wav_out, sr, _ = self.f5.infer(
+                ref_file=self.ref_wav,
+                ref_text=self.ref_text,
+                gen_text=text,
+                speed=speed,
+                nfe_step=nfe_step,
+                show_info=lambda x: None
+            )
+        if wav_out is None or len(wav_out) == 0:
+            raise RuntimeError("F5-TTS 回傳空音訊")
+
+        # 正規化到 -1 dBFS。原本直接寫出去會削峰（實測浮點峰值 1.047，轉 int16 會 wrap-around 爆音）。
+        wav_out = np.asarray(wav_out, dtype=np.float32)
+        peak = float(np.max(np.abs(wav_out)))
+        if peak > 0:
+            wav_out = wav_out * (0.891 / peak)
+
         duration = len(wav_out) / sr
         buf = io.BytesIO()
-        sf.write(buf, wav_out, sr, format="WAV")
+        # 明講 PCM_16：Safari 對 32-bit float WAV 的支援不穩，別靠 soundfile 的預設值
+        sf.write(buf, wav_out, sr, format="WAV", subtype="PCM_16")
         wav_bytes = buf.getvalue()
+        if len(wav_bytes) < 44 or wav_bytes[:4] != b"RIFF":
+            raise RuntimeError("合成結果不是合法的 WAV")
         elapsed = time.time() - t0
         print(f"[TTS] 合成「{text[:20]}...」 | NFE={nfe_step} | 耗時={elapsed:.2f}s | 音訊長={duration:.2f}s (RTF={elapsed/duration:.2f})")
         return wav_bytes, duration, sr
