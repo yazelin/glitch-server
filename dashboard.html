@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>格莉奇語音核心控制台 (Glitch Voice Server)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --panel: #131722;
+      --panel-border: #232a3b;
+      --accent: #f472b6;
+      --accent-glow: rgba(244, 114, 182, 0.35);
+      --cyan: #38bdf8;
+      --cyan-glow: rgba(56, 189, 248, 0.3);
+      --green: #4ade80;
+      --red: #f87171;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Noto Sans TC", -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 16px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--panel-border);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 16px var(--accent-glow);
+      background: #1e1b4b;
+      object-fit: cover;
+    }
+    .brand-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-sub {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      font-family: "JetBrains Mono", monospace;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-family: "JetBrains Mono", monospace;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--cyan);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-dim);
+    }
+    .status-dot.online {
+      background: var(--green);
+      box-shadow: 0 0 10px var(--green);
+    }
+    .status-dot.offline {
+      background: var(--red);
+    }
+    .url-box {
+      background: #090c10;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.9rem;
+      color: var(--cyan);
+      word-break: break-all;
+      margin-bottom: 14px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #ec4899, #8b5cf6);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(236, 72, 153, 0.4);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(236, 72, 153, 0.6);
+    }
+    .btn-secondary {
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid #334155;
+    }
+    .btn-secondary:hover {
+      background: #334155;
+    }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--red);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+    }
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      background: #090c10;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      color: var(--text);
+      padding: 12px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      resize: vertical;
+    }
+    textarea:focus, input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+    .control-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 14px 0;
+    }
+    .control-label {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .slider {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    .preview-box {
+      background: #090c10;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 0.85rem;
+      margin: 12px 0;
+      border-left: 3px solid var(--accent);
+    }
+    .preview-item {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .preview-item:last-child { margin-bottom: 0; }
+    .preview-key {
+      color: var(--text-dim);
+      min-width: 60px;
+    }
+    .preview-val {
+      color: #fff;
+      font-weight: 500;
+    }
+    .preview-val.highlight {
+      color: var(--cyan);
+    }
+    audio {
+      width: 100%;
+      margin-top: 12px;
+      border-radius: 8px;
+    }
+    .log-box {
+      background: #090c10;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 12px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.75rem;
+      color: #8b949e;
+      height: 140px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--panel);
+      border: 1px solid var(--accent);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+      font-size: 0.9rem;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 1000;
+    }
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <img class="avatar" src="https://yazelin.github.io/ai-brain-site/images/glitch-ref.webp" alt="Glitch" onerror="this.style.display="none"">
+        <div>
+          <div class="brand-title">格莉奇語音伺服器 <span style="color:var(--accent)">Hub</span></div>
+          <div class="brand-sub">Glitch Voice Server • 4KB Memory Core</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <span class="badge">Port 8000</span>
+        <span class="badge" style="color:var(--accent); border-color:var(--accent);">F5-TTS 0.5B</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- 卡片 1: Cloudflare Tunnel 與社群 KV 節點管理 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <div id="tunnel-dot" class="status-dot offline"></div>
+            🌐 Cloudflare Tunnel & 社群 KV 節點
+          </div>
+          <div id="kv-badge" class="badge" style="background:rgba(74,222,128,0.1); border-color:rgba(74,222,128,0.3); color:var(--green); display:none;">
+            📡 已同步至社群中心
+          </div>
+        </div>
+
+        <div id="tunnel-url-container">
+          <div class="url-box">
+            <span id="tunnel-url-text">Tunnel 尚未啟動</span>
+            <button class="btn btn-secondary btn-sm" id="btn-copy" onclick="copyTunnelUrl()" disabled>📋 複製</button>
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btn-open-site" onclick="openSiteWithServer()" disabled>
+            🚀 開啟格莉奇OS並自動套用網址
+          </button>
+          <button class="btn btn-secondary" id="btn-toggle-tunnel" onclick="toggleTunnel()">
+            🔄 啟動 Tunnel
+          </button>
+          <button class="btn btn-danger btn-sm" id="btn-stop-tunnel" onclick="stopTunnel()" style="display:none;">
+            ⏹️ 停止
+          </button>
+        </div>
+      </div>
+
+      <!-- 卡片 2: 即時語音合成與讀音替身測試器 (TTS Sandbox) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🎙️ 格莉奇 TTS 即時試聽沙盒</div>
+          <span class="badge">CosyVoice3 蒸餾聲紋</span>
+        </div>
+
+        <textarea id="tts-input" rows="3" placeholder="請輸入要試聽的台詞...">好耶！我是格莉奇，黑洞邊緣的虛擬主播，今天天氣真不錯呢！</textarea>
+
+        <div class="control-row">
+          <div>
+            <div class="control-label"><span>語速 (Speed)</span><span id="speed-val">1.0x</span></div>
+            <input type="range" id="speed-slider" class="slider" min="0.7" max="1.3" step="0.05" value="1.0" oninput="document.getElementById("speed-val").textContent=this.value+"x"">
+          </div>
+          <div>
+            <div class="control-label"><span>推論步數 (NFE)</span><span id="nfe-val">12</span></div>
+            <input type="range" id="nfe-slider" class="slider" min="8" max="32" step="2" value="12" oninput="document.getElementById("nfe-val").textContent=this.value">
+          </div>
+        </div>
+
+        <!-- 讀音雙軌預覽 -->
+        <div class="preview-box">
+          <div class="preview-item">
+            <span class="preview-key">螢幕字幕:</span>
+            <span class="preview-val" id="preview-display">--</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-key">發音替身:</span>
+            <span class="preview-val highlight" id="preview-speech">--</span>
+          </div>
+          <div class="preview-item" id="preview-stats" style="display:none;">
+            <span class="preview-key">耗時統計:</span>
+            <span class="preview-val" id="preview-time" style="color:var(--green);">--</span>
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btn-synthesize" onclick="synthesizeTTS()">
+            🔊 立即合成並播放
+          </button>
+        </div>
+
+        <audio id="audio-player" controls style="display:none;"></audio>
+      </div>
+
+      <!-- 卡片 3: 伺服器狀態與即時日誌 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📜 伺服器即時日誌</div>
+          <button class="btn btn-secondary btn-sm" onclick="refreshStatus()">🔄 重新整理</button>
+        </div>
+        <div class="log-box" id="log-box">正在載入伺服器狀態...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let activeTunnelUrl = null;
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 3000);
+    }
+
+    async function copyTunnelUrl() {
+      if (!activeTunnelUrl) return;
+      try {
+        await navigator.clipboard.writeText(activeTunnelUrl);
+        showToast("已複製 Tunnel 網址！📋");
+      } catch (e) {
+        prompt("請複製以下網址：", activeTunnelUrl);
+      }
+    }
+
+    function openSiteWithServer() {
+      if (!activeTunnelUrl) return;
+      const target = "https://yazelin.github.io/ai-brain-site/?set_server=" + encodeURIComponent(activeTunnelUrl);
+      window.open(target, "_blank");
+    }
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch("/api/tunnel/status");
+        const data = await res.json();
+        
+        const dot = document.getElementById("tunnel-dot");
+        const urlText = document.getElementById("tunnel-url-text");
+        const btnCopy = document.getElementById("btn-copy");
+        const btnOpen = document.getElementById("btn-open-site");
+        const btnToggle = document.getElementById("btn-toggle-tunnel");
+        const btnStop = document.getElementById("btn-stop-tunnel");
+        const kvBadge = document.getElementById("kv-badge");
+        const logBox = document.getElementById("log-box");
+
+        if (data.running && data.url) {
+          activeTunnelUrl = data.url;
+          dot.className = "status-dot online";
+          urlText.textContent = data.url;
+          btnCopy.disabled = false;
+          btnOpen.disabled = false;
+          btnToggle.textContent = "🔄 重新啟動 Tunnel";
+          btnStop.style.display = "inline-flex";
+          kvBadge.style.display = data.registered_to_kv ? "inline-flex" : "none";
+        } else if (data.running && !data.url) {
+          dot.className = "status-dot online";
+          urlText.textContent = "Tunnel 啟動中，正在獲取公網網址…";
+          btnCopy.disabled = true;
+          btnOpen.disabled = true;
+          btnStop.style.display = "inline-flex";
+        } else {
+          activeTunnelUrl = null;
+          dot.className = "status-dot offline";
+          urlText.textContent = "Tunnel 已停止（僅本機 127.0.0.1 可用）";
+          btnCopy.disabled = true;
+          btnOpen.disabled = true;
+          btnToggle.textContent = "▶️ 啟動 Cloudflare Tunnel";
+          btnStop.style.display = "none";
+          kvBadge.style.display = "none";
+        }
+
+        if (data.recent_logs && data.recent_logs.length > 0) {
+          logBox.textContent = data.recent_logs.join("\n");
+          logBox.scrollTop = logBox.scrollHeight;
+        } else {
+          logBox.textContent = "伺服器運作正常 (Port 8000)。";
+        }
+      } catch (e) {
+        console.error("Failed to fetch status", e);
+      }
+    }
+
+    async function toggleTunnel() {
+      const btn = document.getElementById("btn-toggle-tunnel");
+      btn.disabled = true;
+      btn.textContent = "啟動中...";
+      try {
+        await fetch("/api/tunnel/start", { method: "POST" });
+        showToast("已觸發 Cloudflare Tunnel 啟動！");
+        setTimeout(refreshStatus, 1500);
+      } catch (e) {
+        showToast("啟動失敗：" + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function stopTunnel() {
+      try {
+        await fetch("/api/tunnel/stop", { method: "POST" });
+        showToast("Tunnel 已停止");
+        refreshStatus();
+      } catch (e) {
+        showToast("停止失敗：" + e.message);
+      }
+    }
+
+    async function synthesizeTTS() {
+      const text = document.getElementById("tts-input").value.trim();
+      if (!text) return showToast("請輸入文字！");
+
+      const speed = parseFloat(document.getElementById("speed-slider").value);
+      const nfe = parseInt(document.getElementById("nfe-slider").value);
+      const btn = document.getElementById("btn-synthesize");
+      const player = document.getElementById("audio-player");
+      const previewDisp = document.getElementById("preview-display");
+      const previewSpeech = document.getElementById("preview-speech");
+      const previewStats = document.getElementById("preview-stats");
+      const previewTime = document.getElementById("preview-time");
+
+      btn.disabled = true;
+      btn.textContent = "⚡ 聲學合成中...";
+
+      const t0 = performance.now();
+      try {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, speed, nfe, return_base64: true })
+        });
+        if (!res.ok) throw new Error("合成失敗 HTTP " + res.status);
+        const data = await res.json();
+        const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+
+        previewDisp.textContent = data.text;
+        previewSpeech.textContent = data.speech_text || data.text;
+        previewStats.style.display = "flex";
+        previewTime.textContent = "生成耗時 " + elapsed + "s | 音訊長度 " + data.duration.toFixed(2) + "s (RTF " + (elapsed/data.duration).toFixed(2) + ")";
+
+        player.src = data.audio_base64;
+        player.style.display = "block";
+        player.play();
+      } catch (e) {
+        showToast("合成失敗：" + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "🔊 立即合成並播放";
+      }
+    }
+
+    refreshStatus();
+    setInterval(refreshStatus, 4000);
+  </script>
+</body>
+</html>

@@ -11,12 +11,13 @@ import urllib.request
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 from engine import GlitchTTSEngine
 from persona import GLITCH_SYSTEM_PROMPT, detect_emotion
 from taiwanize import taiwanize_text
+from tunnel import tunnel_mgr
 
 app = FastAPI(title="Glitch Voice Server", description="格莉奇 AI 語音通話與聲學算力核心")
 
@@ -143,6 +144,46 @@ def call_llm(message: str, history: List[ChatHistoryItem], backend: str, model: 
     return cleaned or "好耶！我有聽到你說話喔！"
 
 
+@app.on_event("startup")
+def on_startup():
+    try:
+        tunnel_mgr.start_tunnel()
+    except Exception as e:
+        print(f"[Startup] Tunnel 自動啟動略過: {e}")
+
+@app.on_event("shutdown")
+def on_shutdown():
+    try:
+        tunnel_mgr.stop_tunnel()
+    except Exception:
+        pass
+
+
+@app.get("/", response_class=HTMLResponse)
+def index_dashboard():
+    """格莉奇語音核心控制台 UI"""
+    dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
+    if os.path.exists(dashboard_path):
+        with open(dashboard_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>格莉奇語音伺服器運行中 (Port 8000)</h1>")
+
+
+@app.get("/api/tunnel/status")
+def get_tunnel_status():
+    return tunnel_mgr.get_status()
+
+
+@app.post("/api/tunnel/start")
+def start_tunnel():
+    return tunnel_mgr.start_tunnel()
+
+
+@app.post("/api/tunnel/stop")
+def stop_tunnel():
+    return tunnel_mgr.stop_tunnel()
+
+
 @app.get("/health")
 def health_check():
     return {
@@ -173,6 +214,7 @@ def tts_endpoint(req: TTSRequest):
         b64 = base64.b64encode(wav_bytes).decode("ascii")
         return {
             "text": display_text,
+            "speech_text": speech_text,
             "audio_base64": f"data:audio/wav;base64,{b64}",
             "duration": duration,
             "sample_rate": sr
