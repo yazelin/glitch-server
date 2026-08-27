@@ -310,13 +310,13 @@
   </header>
 
   <div class="container">
-    
+
     <!-- Hero Banner -->
     <section class="hero">
       <div class="hero-badge">OPEN-SOURCE DECENTRALIZED VOICE MESH</div>
       <h1>格莉奇分散式語音算力節點<br>全雙工聲學通話架構白皮書</h1>
       <p>專為《格莉奇與黑洞先生》世界觀打造・支援全雙工即時通話、雙核心聲學推論、台灣化讀音替身與 Cloudflare 零信任邊緣註冊網路。</p>
-      
+
       <div class="hero-tags">
         <div class="tag-pill">ENGINE: <span>F5-TTS v1 Base (337M)</span></div>
         <div class="tag-pill">ENGINE: <span>CosyVoice 3 (0.5B)</span></div>
@@ -343,15 +343,15 @@
         <pre class="mermaid">
 sequenceDiagram
     autonumber
-    participant Client as 📱 ai-brain-site (瀏覽器)
-    participant KV as ☁️ Cloudflare KV (註冊中心)
-    participant Tunnel as 🛡️ Cloudflare Quick Tunnel
-    participant Node as 🖥️ glitch-voice-server (本機/社群節點)
+    participant Client as ai-brain-site (瀏覽器)
+    participant KV as Cloudflare KV (註冊中心)
+    participant Tunnel as Cloudflare Quick Tunnel
+    participant Node as glitch-voice-server (本機/社群節點)
 
     Note over Node: 1. 節點開機 (RTX 4060 / 8000 Port 順延)
     Node->>Tunnel: 建立本機 HTTPS 穿透通道
     Tunnel-->>Node: 回傳公網 URL (https://xxxx.trycloudflare.com)
-    
+
     loop 每 60 秒心跳 (Heartbeat)
         Node->>KV: POST /voice/register (註冊 URL, 帶 TTL 300s)
         KV-->>Node: 200 OK (節點維持在線)
@@ -360,7 +360,7 @@ sequenceDiagram
     Note over Client: 2. 使用者開啟格莉奇OS
     Client->>KV: GET /voice/nodes (抓取所有在線社群節點)
     KV-->>Client: 回傳可用節點清單 [林亞澤 4060, 社群節點...]
-    
+
     Note over Client: 3. 全雙工即時通話
     Client->>Tunnel: POST /api/glitch-call (包含訊息與歷史對話)
     Tunnel->>Node: 內網直連轉發至 FastAPI (Port 8000)
@@ -372,11 +372,11 @@ sequenceDiagram
 
       <div class="grid-2">
         <div class="feature-item">
-          <div class="feature-title">🌐 無需許可 (Permissionless) 自建節點</div>
+          <div class="feature-title">無需許可 (Permissionless) 自建節點</div>
           <div class="feature-desc">任何開源社群成員只需 clone 本專案並執行 <code>python server.py</code>，其電腦即自動成為全域網路中的算力節點，無需經任何人審批即可為全網提供語音與推理服務。</div>
         </div>
         <div class="feature-item">
-          <div class="feature-title">⏱️ TTL 自動過期與健康保證</div>
+          <div class="feature-title">⏱ TTL 自動過期與健康保證</div>
           <div class="feature-desc">每個節點以 60 秒為週期發送心跳維持在線。當節點電腦關機或斷線超過 300 秒，Cloudflare KV 將自動將其移除，確保前端使用者永遠只會連線到活躍節點。</div>
         </div>
       </div>
@@ -393,35 +393,35 @@ sequenceDiagram
       <div class="diagram-box">
         <pre class="mermaid">
 graph LR
-    Req["📥 POST /api/glitch-call<br>(使用者音訊/文字提問)"] --> Brain{"🧠 多後端 LLM 大腦<br>• llmshare (CLI)<br>• Groq (Cloud API)<br>• Local (Ollama)<br>• Community (社群大腦)"}
-    
-    Brain --> RawText["📝 原始文本回覆"]
-    
+    Req["POST /api/glitch-call<br>(使用者音訊/文字提問)"] --> Brain{"多後端 LLM 大腦<br>• llmshare (CLI)<br>• Groq (Cloud API)<br>• Local (Ollama)<br>• Community (社群大腦)"}
+
+    Brain --> RawText["原始文本回覆"]
+
     RawText --> Taiwanize["🇹🇼 雙軌台灣化音準處理器<br>(taiwanize.py)"]
-    
-    Taiwanize -->|軌道 A: for_speech=False| DispText["🖥️ 螢幕字幕軌<br>保持乾淨正典字形<br>(第一頁有七行喔 / 亞澤)"]
-    Taiwanize -->|軌道 B: for_speech=True| SpeechText["🎙️ 聲學發音軌<br>套用音準替身表<br>(第一頁有七航喔 / 雅澤)"]
-    
-    SpeechText --> Engine{"🎛️ 雙核心 TTS 聲學推論<br>(engine.py)"}
-    Engine -->|極速模式| F5["⚡ F5-TTS v1 Base 337M<br>(RTF=0.20, 耗時 0.9s)"]
-    Engine -->|正典音質| Cosy["✨ CosyVoice 3 0.5B<br>(極致細膩呼吸感)"]
-    
-    F5 --> AudioPost["🔊 聲學後處理<br>-1.0 dBFS 峰值正規化 + PCM-16"]
+
+    Taiwanize -->|軌道 A: for_speech=False| DispText["螢幕字幕軌<br>保持乾淨正典字形<br>(第一頁有七行喔 / 亞澤)"]
+    Taiwanize -->|軌道 B: for_speech=True| SpeechText["聲學發音軌<br>套用音準替身表<br>(第一頁有七航喔 / 雅澤)"]
+
+    SpeechText --> Engine{"雙核心 TTS 聲學推論<br>(engine.py)"}
+    Engine -->|極速模式| F5["F5-TTS v1 Base 337M<br>(RTF=0.20, 耗時 0.9s)"]
+    Engine -->|正典音質| Cosy["CosyVoice 3 0.5B<br>(極致細膩呼吸感)"]
+
+    F5 --> AudioPost["聲學後處理<br>-1.0 dBFS 峰值正規化 + PCM-16"]
     Cosy --> AudioPost
-    
-    AudioPost --> Pack["📦 打包 Base64 + 表情標籤 (happy/sad/laugh)<br>回傳前端即時播放"]
+
+    AudioPost --> Pack["打包 Base64 + 表情標籤 (happy/sad/laugh)<br>回傳前端即時播放"]
     DispText --> Pack
         </pre>
       </div>
 
       <div class="grid-2">
         <div class="feature-item">
-          <div class="feature-title">🚀 開機主動顯存預熱 (Warmup)</div>
+          <div class="feature-title">開機主動顯存預熱 (Warmup)</div>
           <div class="feature-desc">伺服器啟動時主動對 GPU 顯存與 CUDA JIT 進行單次空推論，徹底消除首次通話時的冷啟動延遲，使第一句對話就能達到 1.2s 極速。</div>
         </div>
         <div class="feature-item">
-          <div class="feature-title">🔄 智慧 Port 自動順延 (Auto Probing)</div>
-          <div class="feature-desc">開機自動探測 Port 8000 是否被佔用，若衝突則自動遞增（8001 ➔ 8002...），Tunnel 與後台 UI 自動同步綁定，永不崩潰。</div>
+          <div class="feature-title">智慧 Port 自動順延 (Auto Probing)</div>
+          <div class="feature-desc">開機自動探測 Port 8000 是否被佔用，若衝突則自動遞增（8001 → 8002...），Tunnel 與後台 UI 自動同步綁定，永不崩潰。</div>
         </div>
       </div>
     </section>
@@ -447,7 +447,7 @@ graph LR
         </thead>
         <tbody>
           <tr>
-            <td style="color:#fff; font-weight:600;">⚡ F5-TTS v1 Base (預設)</td>
+            <td style="color:#fff; font-weight:600;">F5-TTS v1 Base (預設)</td>
             <td>22-Layer DiT (Dim=1024) + Vocos</td>
             <td><strong>337 M (0.34B)</strong></td>
             <td><strong>~0.9s (RTF=0.20)</strong></td>
@@ -455,7 +455,7 @@ graph LR
             <td>極速超低延遲、高吞吐，專為即時電話對話設計</td>
           </tr>
           <tr>
-            <td style="color:#fff; font-weight:600;">✨ CosyVoice 3 (原生)</td>
+            <td style="color:#fff; font-weight:600;">CosyVoice 3 (原生)</td>
             <td>Qwen2 0.5B LLM + Matcha Flow + HifiGAN</td>
             <td><strong>500 M (0.50B)</strong></td>
             <td>~3.4s (RTF=0.78)</td>
@@ -479,20 +479,20 @@ graph LR
           <div class="feature-title">🇹🇼 兩岸詞彙轉換 (`LEXICON_SUBS`)</div>
           <div class="feature-desc">
             自動將大陸用語在地化為台灣慣用語：<br>
-            • <code>視頻</code> ➔ <code>影片</code><br>
-            • <code>服務器</code> ➔ <code>伺服器</code><br>
-            • <code>代碼</code> ➔ <code>程式碼</code><br>
-            • <code>默認</code> ➔ <code>預設</code>
+            • <code>視頻</code> → <code>影片</code><br>
+            • <code>服務器</code> → <code>伺服器</code><br>
+            • <code>代碼</code> → <code>程式碼</code><br>
+            • <code>默認</code> → <code>預設</code>
           </div>
         </div>
         <div class="feature-item">
-          <div class="feature-title">🎵 聲學發音音準拐杖 (`PRONUNCIATION_SUBS`)</div>
+          <div class="feature-title">聲學發音音準拐杖 (`PRONUNCIATION_SUBS`)</div>
           <div class="feature-desc">
             修正大陸聲學模型的破音字與聲調缺陷：<br>
-            • <code>林亞澤</code> ➔ <code>林雅澤</code>（鎖定台灣輕柔三聲 <code>yǎ zé</code>）<br>
-            • <code>七行</code> ➔ <code>七航</code>（修正破音字 <code>háng</code>）<br>
-            • <code>零失誤</code> ➔ <code>靈失誤</code><br>
-            • <code>垃圾</code> ➔ <code>勒瑟</code>
+            • <code>林亞澤</code> → <code>林雅澤</code>（鎖定台灣輕柔三聲 <code>yǎ zé</code>）<br>
+            • <code>七行</code> → <code>七航</code>（修正破音字 <code>háng</code>）<br>
+            • <code>零失誤</code> → <code>靈失誤</code><br>
+            • <code>垃圾</code> → <code>勒瑟</code>
           </div>
         </div>
       </div>
