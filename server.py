@@ -211,7 +211,22 @@ def call_llm(message: str, history: Optional[List[ChatHistoryItem]] = None, back
     elif active_backend == "community":
         node_url = (cfg.get("community_node_url") or "").rstrip("/")
         if not node_url:
-            return "尚未設定社群大腦節點 URL，請在控制台選擇或輸入。"
+            # 主動向 KV 註冊中心查詢全網在線的社群大腦節點 (Auto-Discovery)
+            try:
+                req_disc = urllib.request.Request(
+                    "https://glitch-chat.yazelinj303.workers.dev/voice/nodes",
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GlitchVoiceServer/1.1"}
+                )
+                with urllib.request.urlopen(req_disc, timeout=4) as resp_d:
+                    d_nodes = json.load(resp_d).get("nodes", [])
+                    if d_nodes:
+                        node_url = d_nodes[0].get("url", "").rstrip("/")
+            except Exception:
+                pass
+
+        if not node_url:
+            return "全網尚未發現任何在線的社群大腦節點，請確認節點在線狀態。"
+
         endpoint = node_url if node_url.endswith("/chat/completions") else f"{node_url}/v1/chat/completions"
         payload = json.dumps({
             "model": target_model or "default",
