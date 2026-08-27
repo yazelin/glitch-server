@@ -2,7 +2,7 @@
 
 **[ai-brain-site (格莉奇OS)](https://yazelin.github.io/ai-brain-site/) 專屬的開源分散式語音/算力節點。**
 
-提供 **全雙工即時語音通話 (In-Call Audio)**、**雙核心 TTS 聲學推論 (F5-TTS 337M 蒸餾底模 + CosyVoice 3 原生 0.5B)**、**多後端 LLM 大腦管理（支援社群節點大腦連線）**、**雙軌台灣化音準替身系統**、**內建專業廣播控制台** 以及 **Cloudflare KV 自動心跳註冊**。
+提供 **全雙工即時語音通話 (In-Call Audio)**、**雙核心 TTS 聲學推論 (F5-TTS v1 Base 337M + CosyVoice 3 原生 0.5B)**、**多後端 LLM 大腦管理（支援社群節點大腦連線）**、**雙軌台灣化音準替身系統**、**內建專業廣播控制台** 以及 **Cloudflare KV 自動心跳註冊**。
 
 ---
 
@@ -17,7 +17,7 @@ Cloudflare Edge Tunnel (自動穿透 HTTPS) ── 自動心跳 ──> Cloudfla
        │                                              (glitch-chat.yazelinj303.workers.dev)
        ▼
 FastAPI 核心伺服器 (@ localhost:8000 智慧動態順延)
-       ├── 1. 雙引擎 TTS 推論核心 (F5-TTS Base 337M / CosyVoice 3 0.5B)
+       ├── 1. 雙引擎 TTS 推論核心 (F5-TTS v1 Base 337M / CosyVoice 3 0.5B)
        ├── 2. 雙軌字音校正系統 (taiwanize.py：螢幕字幕軌 vs 聲學發音軌)
        ├── 3. 格莉奇大腦與人設推理 (LLM + 表情標籤自動判定)
        ├── 4. 內建專業錄音室廣播控制台 (Studio Broadcast Console @ GET /)
@@ -30,8 +30,32 @@ FastAPI 核心伺服器 (@ localhost:8000 智慧動態順延)
 
 | 引擎名稱 | 參數量 | 延遲 (RTF) | 顯存佔用 | 特色與適用場景 |
 | :--- | :--- | :--- | :--- | :--- |
-| **`F5-TTS Base`** (預設) | **337 M (0.34B)** | **~1.2s (RTF=0.25)** | **~2.1 GB** | 極低延遲、高吞吐、最適合即時語音電話對話 |
-| **`CosyVoice 3`** (原生) | **500 M (0.50B)** | **~3.5s (RTF=0.85)** | **~3.8 GB** | 視覺小說正典音質、極致細膩少女聲線與呼吸感、支援情感指令 |
+| **`F5-TTS v1 Base`** (預設) | **337 M (0.34B)** | **~0.9s (RTF=0.20)** | **~1.0 GB** | 極低延遲、高吞吐、最適合即時語音電話對話 |
+| **`CosyVoice 3`** (原生) | **500 M (0.50B)** | **~3.4s (RTF=0.78)** | **~4.8 GB** | 視覺小說正典音質、極致細膩少女聲線與呼吸感、支援情感指令 |
+
+RTF（Real-Time Factor）＝ 合成耗時 ÷ 產出音訊長度，**低於 1 才追得上即時對話**。
+
+量測條件：RTX 4060 Laptop 8GB、F5 用 `NFE=12`、6.12 秒參考音、23 字輸入、各跑 3 次取中位數。
+
+| 輸入長度 | F5 耗時 / RTF | CosyVoice 3 耗時 / RTF |
+| :--- | :--- | :--- |
+| 3 字（音長 ~1–2s） | 0.66s / 0.33 | 1.56s / **1.50** |
+| 23 字（音長 ~4.4s） | 0.92s / 0.20 | 3.41s / 0.78 |
+| 66 字（音長 ~13s） | 1.79s / 0.13 | 7.47s / 0.59 |
+
+* **RTF 跟輸入長度高度相關**，短句被固定開銷吃掉，別把單一數字當常數看。
+* **CosyVoice 3 的短句 RTF 是 1.50，超過即時**，即時通話請用 F5，CosyVoice 3 留給可以等的正典錄音。
+* F5 若改用官方預設 `NFE=32`，同樣三檔是 0.87 / 0.52 / 0.36，約 2.7 倍慢。
+* 顯存為推論穩態的 nvidia-smi 程序峰值；torch 自報 allocated 分別是 0.70 / 3.24 GiB。
+* 模型載入：F5 約 **6 秒**、CosyVoice 3 約 **18–23 秒**（熱切換引擎時使用者會等到這段）。
+  把 page cache 踢掉重測，F5 變 7.8 秒、CosyVoice 3 仍是 20.7 秒 — 讀碟不是瓶頸。
+  曾觀察到一次 CosyVoice 3 載入 88 秒，之後重現不出來，原因未定案。
+* **合成時間不受 page cache 影響**，權重載完就常駐顯存。但每個 process 的第 1 次合成都比較貴：
+  F5 是 1.24s（穩態 0.92s），**CosyVoice 3 是 8.71s（穩態 3.0–3.4s），多 5.5 秒**。
+  `_load_f5()` 載入後有一次預熱合成把這段吃掉，`_load_cosyvoice()` 目前沒有。
+* CosyVoice 3 底層是 LLM 取樣，**同一句話每次產出的音長都不同**（實測 4.00–4.84s），RTF 只能看區間；
+  F5 是 flow matching，五次跑出來都是 4.70s 分毫不差。
+* 兩顆同時常駐約 5.8 GB，8 GB 卡塞得下但不寬。
 
 ---
 
@@ -72,12 +96,36 @@ FastAPI 核心伺服器 (@ localhost:8000 智慧動態順延)
 
 ---
 
+## 📦 環境與相依
+
+本機是借共用 venv `~/voice-venv`（實體在 `~/CosyVoice/.venv`，另有 f5-voice-loop、voice-loop、cosy-narrator、glitch-vn 一起用）。
+
+**換機器 / 別人要跑**，先跑體檢，缺什麼它會一次印出來：
+
+```bash
+bash setup.sh
+```
+
+要自己建一份獨立環境（會多吃約 4.4G）：
+
+```bash
+python3.10 -m venv .venv
+.venv/bin/pip install -r requirements.txt   # torch 的 CUDA index 見檔內註解
+GLITCH_PYTHON=$PWD/.venv/bin/python bash setup.sh
+```
+
+非 pip 的相依：`cloudflared`（tunnel）、`ollama` 或 `llmshare`（LLM 後端，擇一）。
+F5-TTS 模型第一次啟動會自己下載到 `~/.cache/huggingface`（約 1.3G）。
+
+注意：切到 CosyVoice 引擎時 `engine.py` 會 `sys.path` 指向 `~/CosyVoice` 本體，
+所以那個資料夾也是執行期相依，不只是 venv 借住。
+
 ## 🚀 快速啟動
 
 ### 1. 啟動語音伺服器與控制台
 ```bash
 cd ~/glitch-voice-server
-~/CosyVoice/.venv/bin/python server.py
+~/voice-venv/bin/python server.py
 ```
 
 ### 2. 開啟工程控制台

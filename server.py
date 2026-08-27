@@ -5,6 +5,7 @@
 import base64
 import json
 import os
+import threading
 import subprocess
 import time
 import urllib.request
@@ -362,7 +363,7 @@ def get_active_engine():
         "available_engines": [
             {
                 "id": "f5_distilled",
-                "name": "F5-TTS (CosyVoice3 蒸餾底模)",
+                "name": "F5-TTS v1 Base (官方 Emilia 底模)",
                 "desc": "極速超低延遲 (~1.2s, RTF=0.25) • 顯存佔用低"
             },
             {
@@ -446,7 +447,7 @@ def glitch_call_endpoint(req: GlitchCallRequest):
     # 3. 表情推論
     emotion = detect_emotion(reply_display)
 
-    # 4. 聲學合成 (F5-TTS 蒸餾 或 原生 CosyVoice3)
+    # 4. 聲學合成 (F5-TTS v1 Base 或 原生 CosyVoice3)
     try:
         wav_bytes, duration, sr = engine.synthesize_wav_bytes(
             text=reply_speech,

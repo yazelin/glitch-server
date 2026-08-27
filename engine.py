@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """格莉奇多引擎聲學推論核心 (Dual-Engine TTS Core)。
 支援：
-1. F5-TTS (CosyVoice3 蒸餾底模)：極速超低延遲 (~1.2s, RTF=0.25)。
+1. F5-TTS v1 Base (官方 Emilia 中英底模)：極速超低延遲 (~1.2s, RTF=0.25)。
 2. CosyVoice 3 (原生 Instruct 0.5B)：極致細膩少女聲線與自然呼吸感。
 """
 import io
@@ -37,7 +37,7 @@ class GlitchTTSEngine:
         self.cosyvoice = None
         self._lock = threading.Lock()
         
-        # 預載 F5-TTS 蒸餾底模
+        # 預載 F5-TTS v1 Base 底模
         self._load_f5()
 
     def _load_f5(self):
@@ -71,6 +71,14 @@ class GlitchTTSEngine:
         from cosyvoice.cli.cosyvoice import AutoModel
         self.cosyvoice = AutoModel(model_dir=str(COSY_MODEL_DIR))
         print(f"[GlitchTTSEngine] CosyVoice 3 載入完成！耗時 {time.time()-t0:.2f}s", flush=True)
+
+        # 預熱：第一次合成比穩態貴約 5.5s（8.71s vs 3.0-3.4s），先在這裡吃掉
+        try:
+            ref = str(COSY_REF_WAV) if COSY_REF_WAV.exists() else self.ref_wav
+            list(self.cosyvoice.inference_instruct2(
+                "連線就緒", COSY_INSTRUCT, ref, stream=False, speed=1.0))
+        except Exception:
+            pass
 
     def set_engine(self, engine_name: str) -> str:
         with self._lock:
