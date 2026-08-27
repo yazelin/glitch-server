@@ -318,7 +318,7 @@
       <p>專為《格莉奇與黑洞先生》世界觀打造・支援全雙工即時通話、雙核心聲學推論、台灣化讀音替身與 Cloudflare 零信任邊緣註冊網路。</p>
       
       <div class="hero-tags">
-        <div class="tag-pill">ENGINE: <span>F5-TTS Base (337M)</span></div>
+        <div class="tag-pill">ENGINE: <span>F5-TTS v1 Base (337M)</span></div>
         <div class="tag-pill">ENGINE: <span>CosyVoice 3 (0.5B)</span></div>
         <div class="tag-pill">REGISTRY: <span>Cloudflare KV Mesh</span></div>
         <div class="tag-pill">BANDWIDTH: <span>Unmetered & $0 Cost</span></div>
@@ -403,7 +403,7 @@ graph LR
     Taiwanize -->|軌道 B: for_speech=True| SpeechText["🎙️ 聲學發音軌<br>套用音準替身表<br>(第一頁有七航喔 / 雅澤)"]
     
     SpeechText --> Engine{"🎛️ 雙核心 TTS 聲學推論<br>(engine.py)"}
-    Engine -->|極速模式| F5["⚡ F5-TTS Base 337M<br>(RTF=0.25, 耗時 1.2s)"]
+    Engine -->|極速模式| F5["⚡ F5-TTS v1 Base 337M<br>(RTF=0.20, 耗時 0.9s)"]
     Engine -->|正典音質| Cosy["✨ CosyVoice 3 0.5B<br>(極致細膩呼吸感)"]
     
     F5 --> AudioPost["🔊 聲學後處理<br>-1.0 dBFS 峰值正規化 + PCM-16"]
@@ -447,19 +447,19 @@ graph LR
         </thead>
         <tbody>
           <tr>
-            <td style="color:#fff; font-weight:600;">⚡ F5-TTS Base (預設)</td>
+            <td style="color:#fff; font-weight:600;">⚡ F5-TTS v1 Base (預設)</td>
             <td>22-Layer DiT (Dim=1024) + Vocos</td>
             <td><strong>337 M (0.34B)</strong></td>
-            <td><strong>~1.2s (RTF=0.25)</strong></td>
-            <td>~2.1 GB</td>
+            <td><strong>~0.9s (RTF=0.20)</strong></td>
+            <td>~1.0 GB</td>
             <td>極速超低延遲、高吞吐，專為即時電話對話設計</td>
           </tr>
           <tr>
             <td style="color:#fff; font-weight:600;">✨ CosyVoice 3 (原生)</td>
             <td>Qwen2 0.5B LLM + Matcha Flow + HifiGAN</td>
             <td><strong>500 M (0.50B)</strong></td>
-            <td>~3.5s (RTF=0.85)</td>
-            <td>~3.8 GB</td>
+            <td>~3.4s (RTF=0.78)</td>
+            <td>~4.8 GB</td>
             <td>正典細膩少女聲線、微弱呼吸感、支援情感 Prompt 指令</td>
           </tr>
         </tbody>
@@ -511,7 +511,7 @@ git clone https://github.com/yazelin/glitch-voice-server.git
 cd glitch-voice-server
 
 # 2. 啟動伺服器 (自動建立 Tunnel 並註冊到 Cloudflare KV)
-~/CosyVoice/.venv/bin/python server.py
+~/voice-venv/bin/python server.py
 
 # 3. 打開瀏覽器控制台
 http://127.0.0.1:8000</code></pre>
