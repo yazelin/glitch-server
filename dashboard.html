@@ -519,7 +519,77 @@
         </div>
       </div>
 
-      <!-- Unit 3: Master Audio Output & Telemetry -->
+      <!-- Unit 3: LLM Ingestion & Reasoning Brain -->
+      <div class="rack-card col-full">
+        <div class="rack-card-head">
+          <div class="rack-card-title">[LLM] INGESTION & REASONING BRAIN</div>
+          <div id="llm-backend-pill" class="metric-pill">BACKEND: <span>LLMSHARE</span></div>
+        </div>
+        <div class="rack-card-body">
+          <div class="rack-grid" style="gap:14px;">
+            
+            <div class="field-group">
+              <div class="field-label">
+                <span>INFERENCE BRAIN BACKEND</span>
+                <span class="val" id="llm-active-tag" style="color:var(--accent-cyan);">LLMSHARE (CLI)</span>
+              </div>
+              <select id="llm-backend-select" class="input-terminal" onchange="onLLMBackendChange(this.value)" style="cursor:pointer;">
+                <option value="llmshare">⚡ llmshare (本機 CLI • deepseek-v4-flash:0731 • 免金鑰)</option>
+                <option value="groq">🚀 Groq Cloud (極速雲端 API • LLaMA 3.3 70B)</option>
+                <option value="local">💻 Local Endpoint (本機 Ollama / vLLM @ 127.0.0.1:11434)</option>
+                <option value="community">🌐 Community Node Mesh (其他社群節點推論大腦)</option>
+              </select>
+            </div>
+
+            <!-- Dynamic Sub-Config Area -->
+            <div class="field-group" id="llm-subconfig-area">
+              <div class="field-label">
+                <span id="llm-subconfig-label">TARGET MODEL</span>
+              </div>
+              <input type="text" id="llm-model-input" class="input-terminal" placeholder="模型名稱..." value="deepseek-v4-flash:0731" onchange="saveLLMConfig()">
+            </div>
+
+            <!-- Extra field for Community Node or Local URL or Groq Key -->
+            <div class="field-group col-full" id="llm-extra-config" style="display:none;">
+              <div class="field-label">
+                <span id="llm-extra-label">ENDPOINT / KEY</span>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <select id="llm-community-select" class="input-terminal" style="display:none; flex:1; min-width:200px;" onchange="onCommunityNodeSelect(this.value)">
+                  <option value="">-- 選擇在線社群大腦節點 --</option>
+                </select>
+                <input type="text" id="llm-extra-input" class="input-terminal" style="flex:2; min-width:240px;" placeholder="URL 或 API Key..." onchange="saveLLMConfig()">
+                <button class="btn-studio primary" onclick="saveLLMConfig()">SAVE CONFIG</button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Brain Sandbox Q&A Test -->
+          <div class="field-group" style="margin-top:6px;">
+            <div class="field-label"><span>BRAIN TEST PROMPT & REASONING OUTPUT</span></div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="llm-test-input" class="input-terminal" placeholder="輸入測試問題..." value="格莉奇，你今天喝了什麼？">
+              <button class="btn-studio primary" id="btn-test-llm" onclick="testLLMBrain()" style="white-space:nowrap;">
+                TEST INFERENCE
+              </button>
+            </div>
+            <div class="dual-track-box" style="margin-top:8px;">
+              <div class="track-row">
+                <div class="track-tag">REPLY</div>
+                <div class="track-content speech" id="llm-test-reply">點擊 TEST INFERENCE 測試目前選中的大腦推論...</div>
+              </div>
+              <div class="track-row">
+                <div class="track-tag">STATS</div>
+                <div class="track-content" id="llm-test-stats" style="font-family:'JetBrains Mono',monospace; font-size:0.75rem;">--</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Unit 4: Master Audio Output & Telemetry -->
       <div class="rack-card col-full">
         <div class="rack-card-head">
           <div class="rack-card-title">[AUD] MASTER OUTPUT & LATENCY TELEMETRY</div>
@@ -765,14 +835,165 @@
       }
     }
 
+    async function fetchLLMConfig() {
+      try {
+        const res = await fetch("/api/llm/config");
+        const data = await res.json();
+        const sel = document.getElementById("llm-backend-select");
+        const pill = document.getElementById("llm-backend-pill");
+        const tag = document.getElementById("llm-active-tag");
+        const modelInput = document.getElementById("llm-model-input");
+
+        if (sel) sel.value = data.backend;
+        if (pill) pill.innerHTML = "BACKEND: <span>" + data.backend.toUpperCase() + "</span>";
+        if (tag) tag.textContent = data.backend.toUpperCase();
+        if (modelInput && !modelInput.dataset.touched) modelInput.value = data.model;
+
+        updateLLMUI(data.backend, data);
+        fetchCommunityNodes();
+      } catch (e) {
+        console.error("fetchLLMConfig error", e);
+      }
+    }
+
+    function updateLLMUI(backend, data) {
+      const extraGroup = document.getElementById("llm-extra-config");
+      const extraLabel = document.getElementById("llm-extra-label");
+      const extraInput = document.getElementById("llm-extra-input");
+      const commSelect = document.getElementById("llm-community-select");
+
+      if (backend === "groq") {
+        extraGroup.style.display = "flex";
+        extraLabel.textContent = "GROQ API KEY (Bearer)";
+        extraInput.style.display = "block";
+        extraInput.placeholder = "gsk_...";
+        commSelect.style.display = "none";
+      } else if (backend === "local") {
+        extraGroup.style.display = "flex";
+        extraLabel.textContent = "LOCAL OLLAMA / VLLM ENDPOINT";
+        extraInput.style.display = "block";
+        extraInput.placeholder = "http://127.0.0.1:11434/v1";
+        if (data && data.local_url) extraInput.value = data.local_url;
+        commSelect.style.display = "none";
+      } else if (backend === "community") {
+        extraGroup.style.display = "flex";
+        extraLabel.textContent = "COMMUNITY NODE ENDPOINT (HTTP / HTTPS)";
+        commSelect.style.display = "block";
+        extraInput.style.display = "block";
+        extraInput.placeholder = "https://xxxx.trycloudflare.com";
+        if (data && data.community_node_url) extraInput.value = data.community_node_url;
+      } else {
+        extraGroup.style.display = "none";
+      }
+    }
+
+    async function fetchCommunityNodes() {
+      try {
+        const res = await fetch("https://glitch-chat.yazelinj303.workers.dev/voice/nodes");
+        const data = await res.json();
+        const select = document.getElementById("llm-community-select");
+        if (!select) return;
+
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">-- 選擇在線社群大腦節點 --</option>';
+        (data.nodes || []).forEach(n => {
+          const opt = document.createElement("option");
+          opt.value = n.url;
+          opt.textContent = (n.is_default ? "🟢 [官方] " : "🌐 ") + n.name + " (" + n.url + ")";
+          select.appendChild(opt);
+        });
+        if (currentVal) select.value = currentVal;
+      } catch (e) {}
+    }
+
+    function onCommunityNodeSelect(url) {
+      if (url) {
+        document.getElementById("llm-extra-input").value = url;
+        saveLLMConfig();
+      }
+    }
+
+    async function onLLMBackendChange(newBackend) {
+      const pill = document.getElementById("llm-backend-pill");
+      const tag = document.getElementById("llm-active-tag");
+      const modelInput = document.getElementById("llm-model-input");
+
+      if (pill) pill.innerHTML = "BACKEND: <span>" + newBackend.toUpperCase() + "</span>";
+      if (tag) tag.textContent = newBackend.toUpperCase();
+
+      if (newBackend === "llmshare") modelInput.value = "deepseek-v4-flash:0731";
+      else if (newBackend === "groq") modelInput.value = "llama-3.3-70b-versatile";
+      else if (newBackend === "local") modelInput.value = "qwen2.5:7b";
+      else if (newBackend === "community") modelInput.value = "default";
+
+      updateLLMUI(newBackend);
+      saveLLMConfig();
+    }
+
+    async function saveLLMConfig() {
+      const backend = document.getElementById("llm-backend-select").value;
+      const model = document.getElementById("llm-model-input").value.trim();
+      const extraVal = document.getElementById("llm-extra-input").value.trim();
+
+      const payload = { backend, model };
+      if (backend === "groq" && extraVal) payload.groq_api_key = extraVal;
+      if (backend === "local" && extraVal) payload.local_url = extraVal;
+      if (backend === "community" && extraVal) payload.community_node_url = extraVal;
+
+      try {
+        const res = await fetch("/api/llm/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        toast("LLM BRAIN CONFIG SAVED (" + data.backend.toUpperCase() + ")");
+      } catch (e) {
+        toast("SAVE FAILED: " + e.message);
+      }
+    }
+
+    async function testLLMBrain() {
+      const msg = document.getElementById("llm-test-input").value.trim();
+      if (!msg) return toast("TEST PROMPT IS EMPTY");
+
+      const btn = document.getElementById("btn-test-llm");
+      const replyEl = document.getElementById("llm-test-reply");
+      const statsEl = document.getElementById("llm-test-stats");
+
+      btn.disabled = true;
+      btn.textContent = "INFERRING...";
+      replyEl.textContent = "大腦思考中...";
+
+      try {
+        const res = await fetch("/api/llm/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: msg })
+        });
+        const data = await res.json();
+        replyEl.textContent = data.reply;
+        statsEl.textContent = "BACKEND: " + data.backend + " | MODEL: " + data.model + " | LATENCY: " + data.latency_ms + "ms";
+        toast("BRAIN TEST COMPLETE (" + data.latency_ms + "ms)");
+      } catch (e) {
+        replyEl.textContent = "測試失敗：" + e.message;
+        toast("INFERENCE FAILED: " + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "TEST INFERENCE";
+      }
+    }
+
     function refreshConsole() {
       refreshStatus();
       fetchActiveEngine();
+      fetchLLMConfig();
       toast("LOGS REFRESHED");
     }
 
     refreshStatus();
     fetchActiveEngine();
+    fetchLLMConfig();
     setInterval(refreshStatus, 4000);
   </script>
 </body>

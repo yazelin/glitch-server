@@ -50,11 +50,66 @@ app.add_middleware(
 DEFAULT_NFE = 12
 engine = GlitchTTSEngine(nfe_default=DEFAULT_NFE)
 
-DEFAULT_MODEL = {
-    "llmshare": "deepseek-v4-flash:0731",
-    "groq": "openai/gpt-oss-120b",
-    "local": "qwen3.5-4b",
-}
+class LLMConfigManager:
+    def __init__(self):
+        self.backend = "llmshare"
+        self.model = "deepseek-v4-flash:0731"
+        self.groq_api_key = os.environ.get("GROQ_API_KEY", "")
+        self.local_url = "http://127.0.0.1:11434/v1"
+        self.community_node_url = ""
+        self.lock = threading.Lock()
+
+    def get_config(self):
+        with self.lock:
+            return {
+                "backend": self.backend,
+                "model": self.model,
+                "has_groq_key": bool(self.groq_api_key),
+                "local_url": self.local_url,
+                "community_node_url": self.community_node_url,
+                "available_backends": [
+                    {
+                        "id": "llmshare",
+                        "name": "llmshare (本機 CLI • 免金鑰)",
+                        "default_model": "deepseek-v4-flash:0731",
+                        "desc": "本機極速直連，超低延遲回答"
+                    },
+                    {
+                        "id": "groq",
+                        "name": "Groq Cloud (極速雲端 API)",
+                        "default_model": "llama-3.3-70b-versatile",
+                        "desc": "雲端高智慧大腦，回覆生動細膩"
+                    },
+                    {
+                        "id": "local",
+                        "name": "Local Endpoint (本機 Ollama / vLLM)",
+                        "default_model": "qwen2.5:7b",
+                        "desc": "私有在地端大模型推理"
+                    },
+                    {
+                        "id": "community",
+                        "name": "Community Node Mesh (社群推論大腦)",
+                        "default_model": "default",
+                        "desc": "連接其他社群開源節點的共享推理算力"
+                    }
+                ]
+            }
+
+    def update_config(self, backend=None, model=None, groq_api_key=None, local_url=None, community_node_url=None):
+        with self.lock:
+            if backend:
+                self.backend = backend
+            if model is not None:
+                self.model = model
+            if groq_api_key is not None:
+                self.groq_api_key = groq_api_key
+            if local_url is not None:
+                self.local_url = local_url
+            if community_node_url is not None:
+                self.community_node_url = community_node_url
+        return self.get_config()
+
+llm_mgr = LLMConfigManager()
 
 class ChatHistoryItem(BaseModel):
     role: str  # "user" or "assistant"
@@ -67,7 +122,7 @@ class GlitchCallRequest(BaseModel):
     engine: Optional[str] = None
     speed: Optional[float] = 1.0
     nfe: Optional[int] = 12
-    backend: Optional[str] = "llmshare"
+    backend: Optional[str] = None
     model: Optional[str] = None
 
 class TTSRequest(BaseModel):
@@ -80,44 +135,59 @@ class TTSRequest(BaseModel):
 class SelectEngineRequest(BaseModel):
     engine: str
 
+class UpdateLLMConfigRequest(BaseModel):
+    backend: Optional[str] = None
+    model: Optional[str] = None
+    groq_api_key: Optional[str] = None
+    local_url: Optional[str] = None
+    community_node_url: Optional[str] = None
 
-def call_llm(message: str, history: List[ChatHistoryItem], backend: str, model: str) -> str:
+class TestLLMRequest(BaseModel):
+    message: str
+    backend: Optional[str] = None
+    model: Optional[str] = None
+
+
+def call_llm(message: str, history: Optional[List[ChatHistoryItem]] = None, backend: Optional[str] = None, model: Optional[str] = None) -> str:
     """調用 LLM 生成格莉奇的回覆"""
+    cfg = llm_mgr.get_config()
+    active_backend = backend or cfg["backend"]
+    target_model = model or cfg["model"]
+
     sys_prompt = GLITCH_SYSTEM_PROMPT
     past_dialogue = ""
     if history:
         turns = [f"{'你' if h.role=='assistant' else '我'}：{h.content}" for h in history[-6:]]
         past_dialogue = "\n".join(turns) + "\n"
 
-    user_prompt = (
-        f"{sys_prompt}\n"
-        f"【對話歷史】\n{past_dialogue}"
-        f"我：{message}\n"
-        f"格莉奇（簡短自然口語回答）："
-    )
-
-    target_model = model or DEFAULT_MODEL.get(backend, DEFAULT_MODEL["llmshare"])
-
-    if backend == "llmshare":
+    raw = ""
+    if active_backend == "llmshare":
+        user_prompt = (
+            f"{sys_prompt}\n"
+            f"【對話歷史】\n{past_dialogue}"
+            f"我：{message}\n"
+            f"格莉奇（簡短自然口語回答）："
+        )
         try:
             r = subprocess.run(
-                ["llmshare", "raw", target_model, user_prompt],
+                ["llmshare", "raw", target_model or "deepseek-v4-flash:0731", user_prompt],
                 capture_output=True,
                 text=True,
                 timeout=15
             )
-            raw = r.stdout if r.returncode == 0 else f"欸嘿，我的 4KB 記憶體剛才當機了一下！"
+            raw = r.stdout if r.returncode == 0 else "欸嘿，我的 4KB 記憶體剛才當機了一下！"
         except Exception as e:
             raw = f"記憶體讀取超時囉：{e}"
-    elif backend == "groq":
-        key = os.environ.get("GROQ_API_KEY")
+
+    elif active_backend == "groq":
+        key = llm_mgr.groq_api_key or os.environ.get("GROQ_API_KEY")
         if not key:
-            return "未設定 GROQ_API_KEY"
+            return "未設定 GROQ_API_KEY，請在控制台填入金鑰。"
         payload = json.dumps({
-            "model": target_model,
+            "model": target_model or "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": GLITCH_SYSTEM_PROMPT},
-                *[{"role": h.role, "content": h.content} for h in history[-6:]],
+                *[{"role": h.role, "content": h.content} for h in (history or [])[-6:]],
                 {"role": "user", "content": message}
             ],
             "max_tokens": 150
@@ -125,7 +195,11 @@ def call_llm(message: str, history: List[ChatHistoryItem], backend: str, model: 
         req = urllib.request.Request(
             "https://api.groq.com/openai/v1/chat/completions",
             payload.encode(),
-            {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            {
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GlitchVoiceServer/1.1"
+            }
         )
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -133,35 +207,97 @@ def call_llm(message: str, history: List[ChatHistoryItem], backend: str, model: 
             raw = data["choices"][0]["message"].get("content") or ""
         except Exception as e:
             raw = f"Groq 連線異常：{e}"
-    else:
-        # local
+
+    elif active_backend == "community":
+        node_url = (cfg.get("community_node_url") or "").rstrip("/")
+        if not node_url:
+            return "尚未設定社群大腦節點 URL，請在控制台選擇或輸入。"
+        endpoint = node_url if node_url.endswith("/chat/completions") else f"{node_url}/v1/chat/completions"
         payload = json.dumps({
-            "model": target_model,
+            "model": target_model or "default",
             "messages": [
                 {"role": "system", "content": GLITCH_SYSTEM_PROMPT},
-                *[{"role": h.role, "content": h.content} for h in history[-6:]],
+                *[{"role": h.role, "content": h.content} for h in (history or [])[-6:]],
                 {"role": "user", "content": message}
             ],
             "max_tokens": 150
         })
         req = urllib.request.Request(
-            "http://127.0.0.1:8080/v1/chat/completions",
+            endpoint,
+            payload.encode(),
+            {
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GlitchVoiceServer/1.1"
+            }
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                data = json.load(resp)
+            raw = data["choices"][0]["message"].get("content") or ""
+        except Exception as e:
+            raw = f"社群大腦節點連線異常：{e}"
+
+    else:
+        # local endpoint (Ollama / vLLM / llama.cpp)
+        local_base = (cfg.get("local_url") or "http://127.0.0.1:11434/v1").rstrip("/")
+        endpoint = local_base if local_base.endswith("/chat/completions") else f"{local_base}/chat/completions"
+        payload = json.dumps({
+            "model": target_model or "qwen2.5:7b",
+            "messages": [
+                {"role": "system", "content": GLITCH_SYSTEM_PROMPT},
+                *[{"role": h.role, "content": h.content} for h in (history or [])[-6:]],
+                {"role": "user", "content": message}
+            ],
+            "max_tokens": 150
+        })
+        req = urllib.request.Request(
+            endpoint,
             payload.encode(),
             {"Content-Type": "application/json"}
         )
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=12) as resp:
                 data = json.load(resp)
             raw = data["choices"][0]["message"].get("content") or ""
         except Exception as e:
-            raw = f"在地端模型異常：{e}"
+            raw = f"地端模型連線異常：{e}"
 
     cleaned = " ".join(raw.strip().split())
-    # 避免 LLM 自帶角色前綴
     for prefix in ["格莉奇：", "格莉奇:", "Glitch:", "Glitch："]:
         if cleaned.startswith(prefix):
             cleaned = cleaned[len(prefix):].strip()
     return cleaned or "好耶！我有聽到你說話喔！"
+
+
+@app.get("/api/llm/config")
+def get_llm_config():
+    return llm_mgr.get_config()
+
+
+@app.post("/api/llm/config")
+def update_llm_config(req: UpdateLLMConfigRequest):
+    return llm_mgr.update_config(
+        backend=req.backend,
+        model=req.model,
+        groq_api_key=req.groq_api_key,
+        local_url=req.local_url,
+        community_node_url=req.community_node_url
+    )
+
+
+@app.post("/api/llm/test")
+def test_llm_endpoint(req: TestLLMRequest):
+    t0 = time.time()
+    reply = call_llm(message=req.message, backend=req.backend, model=req.model)
+    elapsed_ms = int((time.time() - t0) * 1000)
+    cfg = llm_mgr.get_config()
+    return {
+        "user_message": req.message,
+        "reply": reply,
+        "backend": req.backend or cfg["backend"],
+        "model": req.model or cfg["model"],
+        "latency_ms": elapsed_ms
+    }
 
 
 @app.on_event("startup")
