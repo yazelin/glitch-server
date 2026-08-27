@@ -29,8 +29,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 初始化 F5-TTS 聲學引擎（顯存常駐 ~2.1GB，NFE=16）
-engine = GlitchTTSEngine(nfe_default=16)
+# 初始化 F5-TTS 聲學引擎（顯存常駐 ~2.1GB，NFE=12 極速模式）
+engine = GlitchTTSEngine(nfe_default=12)
 
 DEFAULT_MODEL = {
     "llmshare": "deepseek-v4-flash:0731",
@@ -47,14 +47,14 @@ class GlitchCallRequest(BaseModel):
     history: Optional[List[ChatHistoryItem]] = []
     request_id: Optional[str] = None
     speed: Optional[float] = 1.05
-    nfe: Optional[int] = 16
+    nfe: Optional[int] = 12
     backend: Optional[str] = "llmshare"
     model: Optional[str] = None
 
 class TTSRequest(BaseModel):
     text: str
     speed: Optional[float] = 1.05
-    nfe: Optional[int] = 16
+    nfe: Optional[int] = 12
     return_base64: Optional[bool] = False
 
 

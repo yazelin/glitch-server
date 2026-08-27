@@ -28,6 +28,21 @@ class GlitchTTSEngine:
         print(f"[GlitchTTSEngine] 預設聲紋：{self.ref_wav}")
         print(f"[GlitchTTSEngine] 參考文字：{self.ref_text[:30]}...")
 
+        # 🚀 伺服器開機主動預熱 GPU 顯存與 CUDA JIT (消除首次通話的冷啟動延遲)
+        print(f"[GlitchTTSEngine] 正在進行 GPU 聲學預熱 (Warmup)...", flush=True)
+        t_w = time.time()
+        try:
+            self.f5.infer(
+                ref_file=self.ref_wav,
+                ref_text=self.ref_text,
+                gen_text="連線就緒",
+                nfe_step=self.nfe_default,
+                show_info=lambda x: None
+            )
+            print(f"[GlitchTTSEngine] GPU 預熱完成（{time.time()-t_w:.2f}s），後續所有通話將達極速！", flush=True)
+        except Exception as e:
+            print(f"[GlitchTTSEngine] 預熱略過: {e}", flush=True)
+
     def synthesize_wav_bytes(self, text: str, speed: float = 1.05, nfe: int = None) -> tuple[bytes, float, int]:
         """合成語音並回傳 (wav_bytes, duration_secs, sample_rate)"""
         nfe_step = nfe or self.nfe_default
