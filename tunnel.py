@@ -130,8 +130,7 @@ class TunnelManager:
                     found_url = match.group(0)
                     with self.lock:
                         self.tunnel_url = found_url
-                    print(f'
-[TunnelManager] 🚀 Cloudflare Tunnel 已上線: {found_url}', flush=True)
+                    print(f"[TunnelManager] 🚀 Cloudflare Tunnel 已上線: {found_url}", flush=True)
                     self._register_to_kv(found_url)
 
             self.process.stdout.close()
