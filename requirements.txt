@@ -1,0 +1,21 @@
+# glitch-voice-server 實際會 import 的東西（Python 3.10）
+# 目前本機不是裝在這裡，是借共用的 ~/voice-venv（實體在 ~/CosyVoice/.venv），版本從那裡抄下來的。
+# 換機器 / 別人要跑：python3.10 -m venv .venv && .venv/bin/pip install -r requirements.txt
+#
+# torch 這兩行要走 CUDA 121 的 index，否則會裝到 CPU 版：
+#   pip install torch==2.3.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
+torch==2.3.1
+torchaudio==2.3.1
+
+f5-tts==1.1.22
+fastapi==0.115.6
+uvicorn==0.30.0
+pydantic==2.7.0
+numpy==1.26.4
+soundfile==0.12.1
+
+# 不是 pip 裝的，另外要有：
+#   cloudflared     — tunnel.py 用，https://github.com/cloudflare/cloudflared/releases
+#   ollama          — LLM 後端預設打 127.0.0.1:11434（改用 groq/llmshare 就不需要）
+#   llmshare        — 選用的 LLM 後端，見 ~/.local/bin/llmshare
+# 第一次跑會自己下載 F5-TTS 模型到 ~/.cache/huggingface（約 1.3G）
