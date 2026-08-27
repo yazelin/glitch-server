@@ -64,6 +64,7 @@ class GlitchCallRequest(BaseModel):
     message: str
     history: Optional[List[ChatHistoryItem]] = []
     request_id: Optional[str] = None
+    engine: Optional[str] = None
     speed: Optional[float] = 1.0
     nfe: Optional[int] = 12
     backend: Optional[str] = "llmshare"
@@ -71,9 +72,13 @@ class GlitchCallRequest(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str
+    engine: Optional[str] = None
     speed: Optional[float] = 1.0
     nfe: Optional[int] = 12
     return_base64: Optional[bool] = False
+
+class SelectEngineRequest(BaseModel):
+    engine: str
 
 
 def call_llm(message: str, history: List[ChatHistoryItem], backend: str, model: str) -> str:
@@ -199,13 +204,39 @@ def stop_tunnel():
     return tunnel_mgr.stop_tunnel()
 
 
+@app.get("/api/engine/active")
+def get_active_engine():
+    return {
+        "active_engine": engine.active_engine,
+        "available_engines": [
+            {
+                "id": "f5_distilled",
+                "name": "F5-TTS (CosyVoice3 蒸餾底模)",
+                "desc": "極速超低延遲 (~1.2s, RTF=0.25) • 顯存佔用低"
+            },
+            {
+                "id": "cosyvoice_native",
+                "name": "CosyVoice 3 (原生 Instruct 0.5B)",
+                "desc": "極致細膩少女聲線與自然呼吸感 • 視覺小說正典音質"
+            }
+        ]
+    }
+
+
+@app.post("/api/engine/select")
+def select_engine(req: SelectEngineRequest):
+    act = engine.set_engine(req.engine)
+    return {"status": "ok", "active_engine": act}
+
+
 @app.get("/health")
 def health_check():
     return {
         "status": "ok",
         "service": "glitch-voice-server",
         "port": ACTIVE_PORT,
-        "tts_engine": f"F5-TTS (Base, NFE={DEFAULT_NFE})",
+        "active_engine": engine.active_engine,
+        "tts_engine": f"{engine.active_engine} (NFE={DEFAULT_NFE})",
         "character": "格莉奇 (Glitch)",
         "memory": "4KB",
     }
@@ -222,6 +253,7 @@ def tts_endpoint(req: TTSRequest):
 
     wav_bytes, duration, sr = engine.synthesize_wav_bytes(
         text=speech_text,
+        engine_name=req.engine,
         speed=req.speed,
         nfe=req.nfe
     )
@@ -231,6 +263,7 @@ def tts_endpoint(req: TTSRequest):
         return {
             "text": display_text,
             "speech_text": speech_text,
+            "engine": req.engine or engine.active_engine,
             "audio_base64": f"data:audio/wav;base64,{b64}",
             "duration": duration,
             "sample_rate": sr
@@ -262,10 +295,11 @@ def glitch_call_endpoint(req: GlitchCallRequest):
     # 3. 表情推論
     emotion = detect_emotion(reply_display)
 
-    # 4. F5-TTS 聲學合成
+    # 4. 聲學合成 (F5-TTS 蒸餾 或 原生 CosyVoice3)
     try:
         wav_bytes, duration, sr = engine.synthesize_wav_bytes(
             text=reply_speech,
+            engine_name=req.engine,
             speed=req.speed,
             nfe=req.nfe
         )

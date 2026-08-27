@@ -444,9 +444,20 @@
       <div class="rack-card">
         <div class="rack-card-head">
           <div class="rack-card-title">[DSP] ACOUSTIC SYNTHESIS MONITOR</div>
-          <div class="metric-pill">REF: <span>COSYVOICE3 DISTILLED</span></div>
+          <div id="engine-ref-pill" class="metric-pill">CORE: <span>F5-TTS DISTILLED</span></div>
         </div>
         <div class="rack-card-body">
+          <div class="field-group">
+            <div class="field-label">
+              <span>ACTIVE TTS CORE ENGINE</span>
+              <span class="val" id="engine-status-tag" style="color:var(--accent-cyan);">F5-TTS (DISTILLED)</span>
+            </div>
+            <select id="engine-select-box" class="input-terminal" onchange="onEngineChange(this.value)" style="cursor:pointer;">
+              <option value="f5_distilled">⚡ F5-TTS (CosyVoice3 蒸餾底模 • 極低延遲 1.2s)</option>
+              <option value="cosyvoice_native">✨ CosyVoice 3 (原生 Instruct 0.5B • 極致細膩聲線)</option>
+            </select>
+          </div>
+
           <div class="field-group">
             <div class="field-label"><span>TELEPROMPTER SCRIPT / TARGET UTTERANCE</span></div>
             <textarea id="tts-input-text" class="input-terminal" rows="2" placeholder="輸入合成語音文本...">好耶！我是格莉奇，黑洞邊緣的虛擬主播，今天天氣真不錯呢！</textarea>
@@ -632,12 +643,57 @@
       }
     }
 
+    async function onEngineChange(newEngine) {
+      toast("SWITCHING TTS ENGINE...");
+      try {
+        const res = await fetch("/api/engine/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ engine: newEngine })
+        });
+        const data = await res.json();
+        updateEngineBadge(data.active_engine);
+        toast("ACTIVE: " + data.active_engine.toUpperCase());
+      } catch (e) {
+        toast("SWITCH FAILED: " + e.message);
+      }
+    }
+
+    function updateEngineBadge(activeEngine) {
+      const tag = document.getElementById("engine-status-tag");
+      const refPill = document.getElementById("engine-ref-pill");
+      const selectBox = document.getElementById("engine-select-box");
+      if (selectBox && selectBox.value !== activeEngine) selectBox.value = activeEngine;
+      if (activeEngine === "cosyvoice_native") {
+        if (tag) {
+          tag.textContent = "COSYVOICE 3 (NATIVE INSTRUCT)";
+          tag.style.color = "var(--accent-magenta)";
+        }
+        if (refPill) refPill.innerHTML = "CORE: <span>COSYVOICE3 0.5B</span>";
+      } else {
+        if (tag) {
+          tag.textContent = "F5-TTS (DISTILLED)";
+          tag.style.color = "var(--accent-cyan)";
+        }
+        if (refPill) refPill.innerHTML = "CORE: <span>F5-TTS DISTILLED</span>";
+      }
+    }
+
+    async function fetchActiveEngine() {
+      try {
+        const res = await fetch("/api/engine/active");
+        const data = await res.json();
+        updateEngineBadge(data.active_engine);
+      } catch (e) {}
+    }
+
     async function triggerSynthesis() {
       const text = document.getElementById("tts-input-text").value.trim();
       if (!text) return toast("SCRIPT INPUT IS EMPTY");
 
       const speed = parseFloat(document.getElementById("speed-range").value);
       const nfe = parseInt(document.getElementById("nfe-range").value);
+      const selectedEngine = document.getElementById("engine-select-box") ? document.getElementById("engine-select-box").value : null;
       const btn = document.getElementById("btn-synth-trigger");
       const player = document.getElementById("master-audio-player");
       const trackDisp = document.getElementById("track-display");
@@ -656,7 +712,7 @@
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, speed, nfe, return_base64: true })
+          body: JSON.stringify({ text, speed, nfe, engine: selectedEngine, return_base64: true })
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
@@ -686,10 +742,12 @@
 
     function refreshConsole() {
       refreshStatus();
+      fetchActiveEngine();
       toast("LOGS REFRESHED");
     }
 
     refreshStatus();
+    fetchActiveEngine();
     setInterval(refreshStatus, 4000);
   </script>
 </body>
