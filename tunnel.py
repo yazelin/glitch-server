@@ -15,8 +15,26 @@ from typing import Optional, Dict, Any
 
 CLOUDFLARED_BIN = shutil.which('cloudflared') or '/home/ct/.local/bin/cloudflared'
 REGISTRY_URL = 'https://glitch-chat.yazelinj303.workers.dev'
+# cloudflared 的輸出裡也會出現這些主機名,它們不是配給本節點的通道網址。
+# 少了這道過濾,抓網址會取到第一個對得上樣子的字串就收工,結果註冊一個打不通的位址。
+NOT_TUNNEL_HOSTS = {'https://api.trycloudflare.com', 'https://www.trycloudflare.com'}
 NODE_ID = 'node-yaze-4060'
 NODE_NAME = '林亞澤的 RTX 4060 節點 (台北)'
+
+TUNNEL_URL_RE = re.compile(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
+
+
+def pick_tunnel_url(line: str) -> Optional[str]:
+    """從 cloudflared 的一行輸出裡挑出「配給本節點的」通道網址,挑不到回 None。
+
+    cloudflared 自己的輸出也會提到 api.trycloudflare.com,長得跟通道網址一樣,
+    早期版本取到第一個對得上的字串就收工,結果註冊了一個打不通的位址。
+    """
+    m = TUNNEL_URL_RE.search(line)
+    if not m or m.group(0) in NOT_TUNNEL_HOSTS:
+        return None
+    return m.group(0)
+
 
 class TunnelManager:
     def __init__(self, port: int = 8000):
@@ -69,11 +87,32 @@ class TunnelManager:
                 }
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
-                if resp.status == 200:
-                    self.is_registered = True
-                    print(f'[KV Registry] 📡 節點已成功註冊到 Cloudflare KV 中心: {url}', flush=True)
+                posted = resp.status == 200
+            # POST 收下不等於名單上真的有這一筆,回頭查過才算數
+            if posted and self._in_registry(url):
+                self.is_registered = True
+                print(f'[KV Registry] 節點已註冊,並在名單上確認: {url}', flush=True)
+            else:
+                self.is_registered = False
+                why = '註冊中心查不到這個節點' if posted else f'POST 沒回 200'
+                print(f'[KV Registry] 註冊沒有生效({why}): {url}', flush=True)
         except Exception as e:
             print(f'[KV Registry] 註冊失敗: {e}', flush=True)
+
+    def _in_registry(self, url: str) -> bool:
+        """回頭問註冊中心:名單上真的有這個節點、而且網址是我剛送的那個嗎。"""
+        try:
+            # 這個 worker 會擋掉沒有瀏覽器 UA 的請求(urllib 預設的 UA 拿到 403),
+            # 所以查名單要跟註冊那支帶一樣的 header
+            req = urllib.request.Request(f'{REGISTRY_URL}/voice/nodes', headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GlitchVoiceServer/1.1'
+            })
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                nodes = json.loads(resp.read().decode('utf-8')).get('nodes', [])
+            return any(n.get('id') == NODE_ID and n.get('url') == url for n in nodes)
+        except Exception as e:
+            print(f'[KV Registry] 查名單失敗: {e}', flush=True)
+            return False
 
     def _unregister_from_kv(self):
         """從 Cloudflare KV 註銷節點"""
@@ -128,7 +167,6 @@ class TunnelManager:
             )
 
         def _monitor():
-            url_pattern = re.compile(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
             for line in iter(self.process.stdout.readline, ''):
                 line_str = line.strip()
                 if not line_str:
@@ -138,12 +176,12 @@ class TunnelManager:
                     if len(self.logs) > 100:
                         self.logs.pop(0)
 
-                match = url_pattern.search(line_str)
-                if match and not self.tunnel_url:
-                    found_url = match.group(0)
+                found = pick_tunnel_url(line_str)
+                if found and not self.tunnel_url:
+                    found_url = found
                     with self.lock:
                         self.tunnel_url = found_url
-                    print(f"[TunnelManager] 🚀 Cloudflare Tunnel 已上線: {found_url}", flush=True)
+                    print(f"[TunnelManager] Cloudflare Tunnel 已上線: {found_url}", flush=True)
                     self._register_to_kv(found_url)
 
             self.process.stdout.close()
