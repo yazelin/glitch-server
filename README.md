@@ -170,3 +170,11 @@ cd ~/glitch-voice-server
 ### 4. `GET /api/llm/config` & `POST /api/llm/config` (LLM 大腦配置)
 ### 5. `POST /api/llm/test` (LLM 大腦沙盒測試)
 ### 6. `GET /api/tunnel/status` (通道狀態)
+
+## 授權
+
+程式碼 **MIT**（見 `LICENSE`）。**`assets/` 裡的角色語音素材是 CC BY-NC 4.0**
+（見 `assets/LICENSE`）：可以自由使用、改作、散布，須標示出處，不可商用，
+商業使用含角色授權要先問過林亞澤。
+角色（格莉奇、黑洞先生）的設定正典在
+[ai-brain-site](https://github.com/yazelin/ai-brain-site) 的 `persona.json`。
