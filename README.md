@@ -134,12 +134,68 @@ cd ~/glitch-voice-server
 
 在控制台中即可：
 * 監控 Cloudflare Tunnel 公網網址與在線狀態。
-* 一鍵開啟 `ai-brain-site` 並自動套用伺服器網址。
+* 按一下開啟 `ai-brain-site` 並自動套用伺服器網址。
 * 切換 `F5-TTS` / `CosyVoice 3` 雙語音引擎。
 * 切換 `llmshare` / `Groq` / `Local` / `Community` 四大推論大腦並即時測試 Q&A。
 * 檢視系統事件日誌與聲學延遲指標。
 
 ---
+
+## 音色（聲紋參考音）
+
+一個音色 = `assets/` 底下一組同名的 `.wav` 與 `.txt`。**丟兩個檔進去就多一個音色**，不用改 code。
+
+```
+assets/glitch.wav      assets/glitch.txt        ← 預設，格莉奇
+assets/輕柔女孩.wav     assets/輕柔女孩.txt
+```
+
+`.txt` 是那段 wav 的**逐字稿，必須一字不差**。F5 靠它對齊聲紋，寫錯的話聲線跟咬字會一起飄，而且不會報錯，只會愈聽愈不像。
+
+參考音建議 24000 Hz、單聲道、7 到 10 秒、乾淨無背景音。取樣率跟底模的 `target_sample_rate` 對齊，餵別的 F5 會自己重採樣，但先對齊比較不會出事。
+
+指定方式有兩種，兩種都吃 `assets/` 掃出來的 id：
+
+* 單次請求：`/api/tts` 或 `/api/glitch-call` 帶 `"voice": "<id>"`
+* 換掉預設：`POST /api/voice/select`，或在控制台的下拉選單選
+
+CosyVoice 的預設音色沿用 `glitch-vn/voice-ref/glitch.wav`（那支比較乾淨），其他音色一律用 `assets/` 裡的。
+
+## 節點金鑰（誰能連這台）
+
+**預設完全開放**，跟以前一樣，舊節點升上來不會壞。設了金鑰才開始擋。
+
+```bash
+# 方式一:環境變數(優先,控制台改不動)
+GLITCH_NODE_KEY=你的金鑰 python server.py
+
+# 方式二:控制台的 NODE ACCESS KEY 欄位,寫進 ~/.config/glitch-voice/node-key (0600)
+```
+
+呼叫端帶 `X-Glitch-Key: 你的金鑰`，或 `Authorization: Bearer 你的金鑰`。
+
+| 路徑 | 設了金鑰之後 |
+| :--- | :--- |
+| `/health`、`/api/voices` | 仍然公開 |
+| 其餘全部（含控制台 `/`、`/api/tts`、`/api/glitch-call`、LLM 設定、Tunnel 開關） | 要金鑰 |
+
+`/health` 與 `/api/voices` 留著公開是有原因的：KV 節點清單上的節點要有人驗得出還活著，全鎖等於退出節點網格。
+
+**本機直連（127.0.0.1）永遠放行**，不然第一次設密碼會沒有入口（控制台自己也在保護範圍內）。判斷「本機」不是只看來源 IP。cloudflared 是打到 `127.0.0.1`，從外面進來的請求來源 IP 也是本機。所以要同時滿足「來源是 loopback」而且「沒有任何 proxy 轉發標頭」（`X-Forwarded-For` / `CF-Connecting-IP` / `CF-Ray` / `X-Real-IP`）。這條實測過：同一支端點本機直連 200、經 Tunnel 進來 401。
+
+### 連別人的節點
+
+這台當呼叫端去打別人的節點時，會自己找對方的金鑰：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/node/peers \
+  -H 'Content-Type: application/json' \
+  -d '{"node_url":"https://對方.trycloudflare.com","key":"對方給的金鑰"}'
+```
+
+存在 `~/.config/glitch-voice/peer-keys.json`（0600）。**查不到就當對方是開放的直接打**，所以沒設密碼的節點照樣連得上。
+
+節點註冊時會多送一個 `requires_key` 欄位讓呼叫端在打之前就知道該不該帶金鑰。**註冊中心 Worker 目前會把這個欄位丟掉**（那是另一個 repo），所以現階段呼叫端還是得吃一次 401 才知道。
 
 ## API 規格
 
@@ -148,6 +204,7 @@ cd ~/glitch-voice-server
 {
   "message": "格莉奇，你今天喝了什麼？",
   "engine": "f5_distilled",
+  "voice": "glitch",
   "backend": "llmshare",
   "speed": 1.0,
   "nfe": 12
@@ -167,9 +224,12 @@ cd ~/glitch-voice-server
 
 ### 2. `POST /api/tts` (純文字語音合成)
 ### 3. `GET /api/engine/active` & `POST /api/engine/select` (語音引擎切換)
-### 4. `GET /api/llm/config` & `POST /api/llm/config` (LLM 大腦配置)
-### 5. `POST /api/llm/test` (LLM 大腦沙盒測試)
-### 6. `GET /api/tunnel/status` (通道狀態)
+### 4. `GET /api/voices` & `POST /api/voice/select` (音色切換)
+### 5. `GET /api/llm/config` & `POST /api/llm/config` (LLM 大腦配置)
+### 6. `POST /api/llm/test` (LLM 大腦沙盒測試)
+### 7. `GET /api/tunnel/status` (通道狀態)
+### 8. `GET /api/node/key` & `POST /api/node/key` (本節點金鑰)
+### 9. `GET /api/node/peers` & `POST /api/node/peers` (別人節點的金鑰)
 
 ## 授權
 

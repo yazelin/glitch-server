@@ -12,13 +12,14 @@ import urllib.request
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 
 import socket
 from engine import GlitchTTSEngine
 from persona import GLITCH_SYSTEM_PROMPT, detect_emotion
 from taiwanize import taiwanize_text
+import nodeauth
 from tunnel import tunnel_mgr
 
 def find_available_port(start_port: int = 8000, max_attempts: int = 50) -> int:
@@ -125,6 +126,7 @@ class GlitchCallRequest(BaseModel):
     nfe: Optional[int] = 12
     backend: Optional[str] = None
     model: Optional[str] = None
+    voice: Optional[str] = None
 
 class TTSRequest(BaseModel):
     text: str
@@ -132,9 +134,13 @@ class TTSRequest(BaseModel):
     speed: Optional[float] = 1.0
     nfe: Optional[int] = 12
     return_base64: Optional[bool] = False
+    voice: Optional[str] = None
 
 class SelectEngineRequest(BaseModel):
     engine: str
+
+class SelectVoiceRequest(BaseModel):
+    voice: str
 
 class UpdateLLMConfigRequest(BaseModel):
     backend: Optional[str] = None
@@ -242,6 +248,8 @@ def call_llm(message: str, history: Optional[List[ChatHistoryItem]] = None, back
             endpoint,
             payload.encode(),
             {
+                # 對方節點有設密碼就帶金鑰,查不到就當它是開放的直接打
+                **nodeauth.peer_headers(node_url),
                 "Content-Type": "application/json",
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GlitchVoiceServer/1.1"
             }
@@ -316,6 +324,53 @@ def test_llm_endpoint(req: TestLLMRequest):
     }
 
 
+@app.middleware("http")
+async def node_key_gate(request, call_next):
+    if not nodeauth.request_is_allowed(request):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "這個節點需要金鑰,請帶 X-Glitch-Key 標頭"}
+        )
+    return await call_next(request)
+
+
+class SetNodeKeyRequest(BaseModel):
+    key: str = ""
+
+
+@app.get("/api/node/key")
+def get_node_key_status():
+    """只回「有沒有設」,不回金鑰本身。"""
+    return {"requires_key": bool(nodeauth.node_key()), "source": "env" if os.environ.get("GLITCH_NODE_KEY") else ("file" if nodeauth.KEY_FILE.exists() else "none")}
+
+
+@app.post("/api/node/key")
+def set_node_key_endpoint(req: SetNodeKeyRequest):
+    if os.environ.get("GLITCH_NODE_KEY"):
+        raise HTTPException(status_code=409, detail="金鑰由環境變數 GLITCH_NODE_KEY 決定,改設定檔沒有用")
+    now = nodeauth.set_node_key(req.key)
+    return {"status": "ok", "requires_key": now}
+
+
+class SetPeerKeyRequest(BaseModel):
+    node_url: str
+    key: str = ""
+
+
+@app.get("/api/node/peers")
+def list_peer_keys():
+    """只回有哪些節點記了金鑰,不回金鑰本身。"""
+    return {"peers": sorted(nodeauth._load_peers().keys())}
+
+
+@app.post("/api/node/peers")
+def set_peer_key_endpoint(req: SetPeerKeyRequest):
+    if not req.node_url.strip():
+        raise HTTPException(status_code=400, detail="node_url 不得為空")
+    n = nodeauth.set_peer_key(req.node_url, req.key)
+    return {"status": "ok", "peer_count": n}
+
+
 @app.on_event("startup")
 def on_startup():
     try:
@@ -381,6 +436,21 @@ def select_engine(req: SelectEngineRequest):
     return {"status": "ok", "active_engine": act}
 
 
+@app.get("/api/voices")
+def list_voices():
+    """音色 = assets/ 底下一組同名的 .wav 與 .txt(逐字稿)。丟兩個檔進去就多一個音色。"""
+    return {"active_voice": engine.active_voice, "available_voices": engine.voices()}
+
+
+@app.post("/api/voice/select")
+def select_voice(req: SelectVoiceRequest):
+    try:
+        act = engine.set_voice(req.voice)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"status": "ok", "active_voice": act}
+
+
 @app.get("/health")
 def health_check():
     return {
@@ -407,7 +477,8 @@ def tts_endpoint(req: TTSRequest):
         text=speech_text,
         engine_name=req.engine,
         speed=req.speed,
-        nfe=req.nfe
+        nfe=req.nfe,
+        voice=req.voice
     )
 
     if req.return_base64:
@@ -453,7 +524,8 @@ def glitch_call_endpoint(req: GlitchCallRequest):
             text=reply_speech,
             engine_name=req.engine,
             speed=req.speed,
-            nfe=req.nfe
+            nfe=req.nfe,
+            voice=req.voice
         )
     except Exception as e:
         # 寧可回 500 讓前端顯示錯誤，也不要回一個解不開的 data URL 讓人以為是喇叭壞了

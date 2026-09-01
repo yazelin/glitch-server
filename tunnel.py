@@ -14,6 +14,8 @@ import json
 from typing import Optional, Dict, Any
 
 CLOUDFLARED_BIN = shutil.which('cloudflared') or '/home/ct/.local/bin/cloudflared'
+import nodeauth
+
 REGISTRY_URL = 'https://glitch-chat.yazelinj303.workers.dev'
 # cloudflared 的輸出裡也會出現這些主機名,它們不是配給本節點的通道網址。
 # 少了這道過濾,抓網址會取到第一個對得上樣子的字串就收工,結果註冊一個打不通的位址。
@@ -72,10 +74,12 @@ class TunnelManager:
             'id': NODE_ID,
             'name': NODE_NAME,
             'url': url,
-            'engine': 'F5-TTS (CosyVoice3 蒸餾底模)',
+            'engine': 'F5-TTS v1 Base',
             'character': '格莉奇 (Glitch)',
             'version': '1.1',
-            'is_default': True
+            'is_default': True,
+            # 讓呼叫端在打之前就知道該不該帶金鑰,不用先吃一次 401
+            'requires_key': bool(nodeauth.node_key())
         }
         try:
             req = urllib.request.Request(
