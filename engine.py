@@ -30,8 +30,8 @@ class GlitchTTSEngine:
     def __init__(self, nfe_default: int = 12, default_engine: str = "f5_distilled"):
         self.nfe_default = nfe_default
         self.active_engine = default_engine
-        self.ref_wav = str(DEFAULT_WAV)
-        self.ref_text = DEFAULT_TXT.read_text(encoding="utf-8").strip() if DEFAULT_TXT.exists() else ""
+        self.active_voice = DEFAULT_WAV.stem
+        self.ref_wav, self.ref_text = self._voice_ref(self.active_voice)
         
         self.f5 = None
         self.cosyvoice = None
@@ -39,6 +39,24 @@ class GlitchTTSEngine:
         
         # 預載 F5-TTS v1 Base 底模
         self._load_f5()
+
+    # 音色 = assets/ 底下一組同名的 .wav 與 .txt。.txt 是那段 wav 的逐字稿,
+    # F5 靠它對齊聲紋,寫錯聲線跟咬字會一起飄。
+    def voices(self) -> list:
+        return sorted(p.stem for p in ASSETS.glob("*.wav") if p.with_suffix(".txt").exists())
+
+    def _voice_ref(self, voice_id: str) -> Tuple[str, str]:
+        wav = ASSETS / f"{voice_id}.wav"
+        txt = ASSETS / f"{voice_id}.txt"
+        if not wav.exists() or not txt.exists():
+            raise ValueError(f"找不到音色 {voice_id}(需要 assets/{voice_id}.wav 與 .txt)")
+        return str(wav), txt.read_text(encoding="utf-8").strip()
+
+    def set_voice(self, voice_id: str) -> str:
+        with self._lock:
+            self.ref_wav, self.ref_text = self._voice_ref(voice_id)
+            self.active_voice = voice_id
+            return self.active_voice
 
     def _load_f5(self):
         if self.f5 is not None:
@@ -95,15 +113,19 @@ class GlitchTTSEngine:
         text: str,
         engine_name: Optional[str] = None,
         speed: float = 1.0,
-        nfe: Optional[int] = None
+        nfe: Optional[int] = None,
+        voice: Optional[str] = None
     ) -> Tuple[bytes, float, int]:
         target_engine = engine_name or self.active_engine
+        target_voice = voice or self.active_voice
+        ref_wav, ref_text = self._voice_ref(target_voice)
         t0 = time.time()
 
         with self._lock:
             if target_engine in ["cosyvoice_native", "cosyvoice"]:
                 self._load_cosyvoice()
-                ref_wav = str(COSY_REF_WAV) if COSY_REF_WAV.exists() else self.ref_wav
+                if target_voice == DEFAULT_WAV.stem and COSY_REF_WAV.exists():
+                    ref_wav = str(COSY_REF_WAV)   # 預設音色沿用 glitch-vn 那支較乾淨的參考音
                 gen = self.cosyvoice.inference_instruct2(
                     text,
                     COSY_INSTRUCT,
@@ -121,8 +143,8 @@ class GlitchTTSEngine:
                 self._load_f5()
                 nfe_step = nfe or self.nfe_default
                 wav_out, sr, _ = self.f5.infer(
-                    ref_file=self.ref_wav,
-                    ref_text=self.ref_text,
+                    ref_file=ref_wav,
+                    ref_text=ref_text,
                     gen_text=text,
                     speed=speed,
                     nfe_step=nfe_step,
@@ -144,5 +166,5 @@ class GlitchTTSEngine:
             raise RuntimeError("合成結果不是合法的 WAV")
 
         elapsed = time.time() - t0
-        print(f"[TTS][{target_engine}] 「{text[:20]}...」 | 耗時={elapsed:.2f}s | 音訊長={duration:.2f}s (RTF={elapsed/duration:.2f})")
+        print(f"[TTS][{target_engine}/{target_voice}] 「{text[:20]}...」 | 耗時={elapsed:.2f}s | 音訊長={duration:.2f}s (RTF={elapsed/duration:.2f})")
         return wav_bytes, duration, sr

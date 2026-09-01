@@ -484,6 +484,30 @@
           </div>
 
           <div class="field-group">
+            <div class="field-label">
+              <span>VOICE / 聲紋參考音</span>
+              <span class="val" id="voice-status-tag" style="color:var(--accent-cyan);">GLITCH</span>
+            </div>
+            <select id="voice-select-box" class="input-terminal" onchange="onVoiceChange(this.value)" style="cursor:pointer;">
+            </select>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">
+              <span>NODE ACCESS KEY / 節點金鑰</span>
+              <span class="val" id="nodekey-status-tag" style="color:var(--accent-cyan);">OPEN</span>
+            </div>
+            <input id="nodekey-input" class="input-terminal" type="password" placeholder="留空 = 不設密碼，任何人都能連這個節點" />
+            <div style="display:flex; gap:8px; margin-top:6px;">
+              <button class="btn-terminal" onclick="saveNodeKey()" style="flex:1;">套用金鑰</button>
+            </div>
+            <div style="font-size:11px; opacity:.6; margin-top:6px; line-height:1.5;">
+              本機直連（127.0.0.1）永遠不需要金鑰，經由 Tunnel 進來的一律要。<br>
+              /health 與 /api/voices 保持公開，不然清單上沒人驗得出這台活著。
+            </div>
+          </div>
+
+          <div class="field-group">
             <div class="field-label"><span>TELEPROMPTER SCRIPT / TARGET UTTERANCE</span></div>
             <textarea id="tts-input-text" class="input-terminal" rows="2" placeholder="輸入合成語音文本...">好耶！我是格莉奇，黑洞邊緣的虛擬主播，今天天氣真不錯呢！</textarea>
           </div>
@@ -774,6 +798,66 @@
       }
     }
 
+    async function onVoiceChange(newVoice) {
+      toast("SWITCHING VOICE...");
+      try {
+        const res = await fetch("/api/voice/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voice: newVoice })
+        });
+        const data = await res.json();
+        document.getElementById("voice-status-tag").textContent = data.active_voice.toUpperCase();
+        toast("VOICE: " + data.active_voice.toUpperCase());
+      } catch (e) {
+        toast("SWITCH FAILED: " + e.message);
+      }
+    }
+
+    async function fetchNodeKeyStatus() {
+      try {
+        const res = await fetch("/api/node/key");
+        const data = await res.json();
+        const tag = document.getElementById("nodekey-status-tag");
+        tag.textContent = data.requires_key ? ("LOCKED (" + data.source + ")") : "OPEN";
+        tag.style.color = data.requires_key ? "var(--accent-cyan)" : "#f0a020";
+        document.getElementById("nodekey-input").disabled = (data.source === "env");
+        if (data.source === "env") {
+          document.getElementById("nodekey-input").placeholder = "由環境變數 GLITCH_NODE_KEY 決定，這裡改不動";
+        }
+      } catch (e) {}
+    }
+
+    async function saveNodeKey() {
+      const key = document.getElementById("nodekey-input").value;
+      try {
+        const res = await fetch("/api/node/key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key })
+        });
+        const data = await res.json();
+        if (!res.ok) return toast("FAILED: " + (data.detail || res.status));
+        document.getElementById("nodekey-input").value = "";
+        toast(data.requires_key ? "NODE LOCKED" : "NODE IS NOW OPEN");
+        fetchNodeKeyStatus();
+      } catch (e) {
+        toast("FAILED: " + e.message);
+      }
+    }
+
+    async function fetchVoices() {
+      try {
+        const res = await fetch("/api/voices");
+        const data = await res.json();
+        const box = document.getElementById("voice-select-box");
+        box.innerHTML = data.available_voices
+          .map(v => `<option value="${v}"${v === data.active_voice ? " selected" : ""}>${v}</option>`)
+          .join("");
+        document.getElementById("voice-status-tag").textContent = data.active_voice.toUpperCase();
+      } catch (e) {}
+    }
+
     async function fetchActiveEngine() {
       try {
         const res = await fetch("/api/engine/active");
@@ -789,6 +873,7 @@
       const speed = parseFloat(document.getElementById("speed-range").value);
       const nfe = parseInt(document.getElementById("nfe-range").value);
       const selectedEngine = document.getElementById("engine-select-box") ? document.getElementById("engine-select-box").value : null;
+      const selectedVoice = document.getElementById("voice-select-box") ? document.getElementById("voice-select-box").value : null;
       const btn = document.getElementById("btn-synth-trigger");
       const player = document.getElementById("master-audio-player");
       const trackDisp = document.getElementById("track-display");
@@ -807,7 +892,7 @@
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, speed, nfe, engine: selectedEngine, return_base64: true })
+          body: JSON.stringify({ text, speed, nfe, engine: selectedEngine, voice: selectedVoice, return_base64: true })
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
@@ -987,12 +1072,16 @@
     function refreshConsole() {
       refreshStatus();
       fetchActiveEngine();
+      fetchVoices();
+      fetchNodeKeyStatus();
       fetchLLMConfig();
       toast("LOGS REFRESHED");
     }
 
     refreshStatus();
     fetchActiveEngine();
+    fetchVoices();
+    fetchNodeKeyStatus();
     fetchLLMConfig();
     setInterval(refreshStatus, 4000);
   </script>
