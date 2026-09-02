@@ -77,10 +77,43 @@ RTF（Real-Time Factor）＝ 合成耗時 ÷ 產出音訊長度，**低於 1 才
 
 | 後端類型 (`backend`) | 預設模型 (`model`) | 連線方式與特色 |
 | :--- | :--- | :--- |
-| **`llmshare`** (預設) | `deepseek-v4-flash:0731` | 本機 CLI 調用，毫秒級極速回應、免 API Key、零網路依賴 |
-| **`groq`** | `llama-3.3-70b-versatile` | 雲端極速推論 API，回覆細膩生動（需在控制台填入 `GROQ_API_KEY`） |
+| **`llmshare`** (預設) | `gemma4:31b` | 本機 CLI 調用、免 API Key。選型理由見下方 |
+| **`groq`** | `openai/gpt-oss-120b` | 雲端極速推論 API（需在控制台填入 `GROQ_API_KEY`）。選型理由見下方 |
 | **`local`** | `qwen2.5:7b` | 本機私有端點（預設 `http://127.0.0.1:11434/v1`，相容 Ollama / vLLM） |
 | **`community`** | `default` | **社群節點推論大腦**：自動從 Cloudflare KV 探索在線大腦節點，共享社群推理算力 |
+
+### 預設模型是怎麼挑的
+
+判準只有三個：**延遲**（語音通話要即時）、**回覆長度落在人設要求的 15 到 30 字**、**不吐簡體字或 `<think>`**。全部用本 repo 的格莉奇人設加對話歷史實測，2026-09-02。
+
+**llmshare**（22 個模型全掃過，取前四名重跑三題）：
+
+| 模型 | 中位延遲 | 三題字數 |
+| :--- | ---: | :--- |
+| **`gemma4:31b`** | **1.49s** | 20 / 18 / 20 |
+| `deepseek-v4-flash:0731`（舊預設） | 1.80s | 15 / 12 / 17 |
+| `gpt-oss:120b` | 2.27s | 21 / 17 / 15 |
+| `deepseek-v4-pro:preview` | 2.54s | 21 / 21 / 21 |
+
+`gemma4:31b` 又快又答得出角色梗（問 4KB 那題它自己講出「守則本的第一頁」）。`glm-5.3-flash` 品質更好但中位 8.53 秒，語音通話會卡，適合非即時用途。
+
+**llmshare 是共用閘道，延遲抖動很大**：同一個模型在兩輪量測裡出現過 4.35s 與 1.80s。單跑一次的數字不能當結論。
+
+順手掃到的地雷：`minimax-m3` 會把 `<think>` 吐進正文、`gpt-oss:20b` 回簡體字、`nemotron-3-ultra` 會插 emoji（TTS 唸不出來）。
+
+**Groq**：
+
+| 模型 | 延遲 | 字數 | 問題 |
+| :--- | ---: | :--- | :--- |
+| **`openai/gpt-oss-120b`** | 0.75–1.38s | 18–23 | 偶爾回空字串 |
+| `qwen/qwen3.8-27b` | 0.42s | 8–9 | **不遵守字數指令**，加強語氣也拉不動，逼長會吐殘句與中國用詞 |
+| `groq/compound-mini` | — | — | 不理會 `max_tokens`（設 150 回 512），輸入膨脹到 1112 |
+
+原本的預設 `llama-3.3-70b-versatile` **已經從 Groq 下架**，呼叫會回 `The model does not exist or you do not have access to it`。
+
+`MAX_REPLY_TOKENS` 從 150 拉到 800 是配套：gpt-oss 是推理型模型，token 先花在 reasoning 上，150 的上限下實測 **0/3 有回話**，`content` 一律空字串。
+
+人設維持字數限制、不改成句數限制：實測把「15 到 30 個字」換成「講滿三句」之後，deepseek 變 70 字、glm 變 59 字、gpt-oss 變 93 字，語音要唸二十幾秒。
 
 ---
 
