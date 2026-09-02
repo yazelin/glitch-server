@@ -1006,8 +1006,8 @@
       if (pill) pill.innerHTML = "BACKEND: <span>" + newBackend.toUpperCase() + "</span>";
       if (tag) tag.textContent = newBackend.toUpperCase();
 
-      if (newBackend === "llmshare") modelInput.value = "deepseek-v4-flash:0731";
-      else if (newBackend === "groq") modelInput.value = "llama-3.3-70b-versatile";
+      if (newBackend === "llmshare") modelInput.value = "gemma4:31b";
+      else if (newBackend === "groq") modelInput.value = "openai/gpt-oss-120b";
       else if (newBackend === "local") modelInput.value = "qwen2.5:7b";
       else if (newBackend === "community") modelInput.value = "default";
 

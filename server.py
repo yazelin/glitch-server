@@ -18,6 +18,11 @@ from pydantic import BaseModel
 import socket
 from engine import GlitchTTSEngine
 from persona import GLITCH_SYSTEM_PROMPT, detect_emotion
+
+# 回覆長度的閘門不是這個數字,是人設裡的「15 到 30 個字」。這裡只是安全上限。
+# 但推理型模型(gpt-oss 那類)會先把 token 花在 reasoning 上,上限開太小會在
+# 還沒開始講話時就被截斷,content 直接回空字串——實測 150 對 gpt-oss 是 0/3 有回話。
+MAX_REPLY_TOKENS = 800
 from taiwanize import taiwanize_text
 import nodeauth
 from tunnel import tunnel_mgr
@@ -55,7 +60,7 @@ engine = GlitchTTSEngine(nfe_default=DEFAULT_NFE)
 class LLMConfigManager:
     def __init__(self):
         self.backend = "llmshare"
-        self.model = "deepseek-v4-flash:0731"
+        self.model = "gemma4:31b"
         self.groq_api_key = os.environ.get("GROQ_API_KEY", "")
         self.local_url = "http://127.0.0.1:11434/v1"
         self.community_node_url = ""
@@ -73,13 +78,13 @@ class LLMConfigManager:
                     {
                         "id": "llmshare",
                         "name": "llmshare (本機 CLI • 免金鑰)",
-                        "default_model": "deepseek-v4-flash:0731",
+                        "default_model": "gemma4:31b",
                         "desc": "本機極速直連，超低延遲回答"
                     },
                     {
                         "id": "groq",
                         "name": "Groq Cloud (極速雲端 API)",
-                        "default_model": "llama-3.3-70b-versatile",
+                        "default_model": "openai/gpt-oss-120b",
                         "desc": "雲端高智慧大腦，回覆生動細膩"
                     },
                     {
@@ -177,7 +182,7 @@ def call_llm(message: str, history: Optional[List[ChatHistoryItem]] = None, back
         )
         try:
             r = subprocess.run(
-                ["llmshare", "raw", target_model or "deepseek-v4-flash:0731", user_prompt],
+                ["llmshare", "raw", target_model or "gemma4:31b", user_prompt],
                 capture_output=True,
                 text=True,
                 timeout=15
@@ -191,13 +196,13 @@ def call_llm(message: str, history: Optional[List[ChatHistoryItem]] = None, back
         if not key:
             return "未設定 GROQ_API_KEY，請在控制台填入金鑰。"
         payload = json.dumps({
-            "model": target_model or "llama-3.3-70b-versatile",
+            "model": target_model or "openai/gpt-oss-120b",
             "messages": [
                 {"role": "system", "content": GLITCH_SYSTEM_PROMPT},
                 *[{"role": h.role, "content": h.content} for h in (history or [])[-6:]],
                 {"role": "user", "content": message}
             ],
-            "max_tokens": 150
+            "max_tokens": MAX_REPLY_TOKENS
         })
         req = urllib.request.Request(
             "https://api.groq.com/openai/v1/chat/completions",
@@ -242,7 +247,7 @@ def call_llm(message: str, history: Optional[List[ChatHistoryItem]] = None, back
                 *[{"role": h.role, "content": h.content} for h in (history or [])[-6:]],
                 {"role": "user", "content": message}
             ],
-            "max_tokens": 150
+            "max_tokens": MAX_REPLY_TOKENS
         })
         req = urllib.request.Request(
             endpoint,
@@ -272,7 +277,7 @@ def call_llm(message: str, history: Optional[List[ChatHistoryItem]] = None, back
                 *[{"role": h.role, "content": h.content} for h in (history or [])[-6:]],
                 {"role": "user", "content": message}
             ],
-            "max_tokens": 150
+            "max_tokens": MAX_REPLY_TOKENS
         })
         req = urllib.request.Request(
             endpoint,
